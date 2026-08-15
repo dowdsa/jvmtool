@@ -81,10 +81,8 @@ jobs:
       - name: Install NSIS
         shell: pwsh
         run: |
-          $nsis = "$env:RUNNER_TEMP\nsis"
-          Invoke-WebRequest -Uri "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip" -OutFile "$nsis.zip"
-          Expand-Archive -Path "$nsis.zip" -DestinationPath $nsis
-          echo "$nsis" | Out-File -FilePath $env:GITHUB_PATH -Append
+          choco install nsis -y --no-progress
+          echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
 
       - name: Build desktop NSIS installer (Windows amd64)
         working-directory: desktop/jm-desktop
