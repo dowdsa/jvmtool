@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"jm/internal/config"
+	"jm/pkg/config"
 )
 
 var cfg = config.Default()

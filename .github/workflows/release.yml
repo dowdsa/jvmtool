@@ -57,9 +57,43 @@ jobs:
           path: jm_${{ matrix.platform }}${{ steps.parse.outputs.ext }}
           if-no-files-found: error
 
+  desktop:
+    name: Build Desktop (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.14.0
+
+      - name: Build desktop (Windows amd64)
+        working-directory: desktop/jm-desktop
+        run: |
+          $env:PATH = "$env:PATH;$env:USERPROFILE\go\bin"
+          wails build -platform windows/amd64 -s -skipbindings -clean
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jm-desktop_windows_amd64
+          path: desktop/jm-desktop/build/bin/jm-desktop.exe
+          if-no-files-found: error
+
   release:
     name: Create Release
-    needs: build
+    needs: [build, desktop]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -70,7 +104,7 @@ jobs:
 
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum jm_* > SHA256SUMS.txt
+        run: sha256sum jm_* jm-desktop_* > SHA256SUMS.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

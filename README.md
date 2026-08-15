@@ -6,11 +6,13 @@
 
 - **search** 从远程源搜索可下载版本（JDK 走 Adoptium API，Maven 走 Apache 中央仓库）
 - **install** 下载、校验（SHA256/SHA512）并解压安装，支持断点续传与进度条
-- **use** 切换当前版本（维护 `current` 符号链接）
+- **use** 切换当前版本（维护 `current` 符号链接），并自动配置 shell 环境变量
 - **list** 列出已安装版本
-- **uninstall** 卸载指定版本
+- **uninstall** 卸载指定版本，并自动清理对应的环境变量
 - **current** 显示当前版本并给出环境变量提示
 - **clean** 清理下载缓存
+- **env** 查看/清理 shell 环境变量配置（`jm env show` / `jm env clean`）
+- **桌面端** Windows GUI（基于 Wails），可视化列表/切换/搜索安装/卸载
 
 ## 安装
 
@@ -48,6 +50,21 @@ powershell -ExecutionPolicy Bypass -File install.ps1
 ```bash
 bash install.sh v0.1.0          # 指定版本
 JVMTOOL_PREFIX=$HOME/.local bash install.sh   # 安装到用户目录
+```
+
+### 方式二：Windows 桌面端
+
+从 GitHub Releases 下载 `jm-desktop_windows_amd64.exe`（随 v0.3.0 起发布），双击即可使用图形界面。
+
+功能：已安装列表（标记当前版本）、一键切换、远程搜索 + 安装、卸载版本。
+
+### 方式三：源码构建桌面端
+
+```bash
+# 需安装 Wails CLI (go install github.com/wailsapp/wails/v2/cmd/wails@latest) 和 Node.js
+cd desktop/jm-desktop
+wails build -platform windows/amd64
+# 产物: build/bin/jm-desktop.exe
 ```
 
 ## 使用

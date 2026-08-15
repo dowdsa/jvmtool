@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"jm/internal/config"
-	"jm/internal/download"
-	"jm/internal/env"
-	"jm/internal/version"
+	"jm/pkg/config"
+	"jm/pkg/download"
+	"jm/pkg/env"
+	"jm/pkg/version"
 )
 
 // Kind identifies a managed tool family.

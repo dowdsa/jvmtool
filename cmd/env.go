@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"jm/internal/env"
+	"jm/pkg/env"
 )
 
 func envCmd() *cobra.Command {

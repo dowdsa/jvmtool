@@ -5,6 +5,10 @@
 # Build output
 /dist/
 
+# Go workspace (local dev only)
+go.work
+go.work.sum
+
 # Test & temp
 *.tmp
 *.test

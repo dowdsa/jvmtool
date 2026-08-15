@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"jm/internal/config"
-	"jm/internal/env"
-	"jm/internal/manager"
+	"jm/pkg/config"
+	"jm/pkg/env"
+	"jm/pkg/manager"
 )
 
 func searchCmd(name, kind kindString) *cobra.Command {

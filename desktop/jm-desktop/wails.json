@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "jm-desktop",
+  "outputfilename": "jm-desktop",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "dowdsa",
+    "email": "dowdsa@users.noreply.github.com"
+  }
+}
