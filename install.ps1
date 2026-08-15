@@ -17,6 +17,10 @@
 
 $ErrorActionPreference = "Stop"
 
+# 设置 UTF-8 输出编码，避免中文乱码
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # ---------- 可配置项 ----------
 # 注意: 为兼容 "irm <url> | iex" 管道执行，不使用 param() 块，
 # 版本号可通过环境变量 JVMTOOL_VERSION 指定。
@@ -33,7 +37,7 @@ $ProfilePath = $PROFILE.CurrentUserAllHosts
 
 function Write-Ok   { Write-Host "[OK]   " -ForegroundColor Green -NoNewline; Write-Host $args }
 function Write-Warn { Write-Host "[!!]   " -ForegroundColor Yellow -NoNewline; Write-Host $args }
-function Write-Fail { Write-Host "[FAIL] " -ForegroundColor Red -NoNewline; Write-Host $args; exit 1 }
+function Write-Fail { Write-Host "[FAIL] " -ForegroundColor Red -NoNewline; Write-Host $args; throw $args }
 
 # ---------- 1. 平台检测 ----------
 function Get-Platform {
@@ -57,7 +61,7 @@ function Resolve-Version {
         $script:Version = $resp.tag_name.TrimStart("v")
         if (-not $script:Version) { throw "empty tag" }
     } catch {
-        Write-Fail "无法获取最新版本，请检查 RepoOwner/RepoName 配置或网络。$($_.Exception.Message)"
+        Write-Fail "无法获取最新版本。可能原因: 仓库 $RepoOwner/$RepoName 还没有发布任何 Release。`n`n  解决方法: 1) 等待维护者发布 v0.1.0; 或 2) 指定已发布版本号: `n       `$env:JVMTOOL_VERSION = `"v0.1.0`"; iwr https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -useb | iex"
     }
 }
 
@@ -180,17 +184,24 @@ function Init-Dirs {
 }
 
 # ---------- 主流程 ----------
-Write-Ok "开始安装 jm (版本: $Version)"
-Install-Binary
-Set-UserEnv
-Init-Dirs
+try {
+    Write-Ok "开始安装 jm (版本: $Version)"
+    Install-Binary
+    Set-UserEnv
+    Init-Dirs
 
-Write-Host ""
-Write-Ok "安装完成！"
-Write-Host ""
-Write-Host "  使用方法:"
-Write-Host "    打开新 PowerShell 窗口后即可使用"
-Write-Host "    jm jdk search 21     # 搜索版本"
-Write-Host "    jm jdk install 21    # 安装"
-Write-Host "    jm jdk use 21        # 切换版本"
-Write-Host ""
+    Write-Host ""
+    Write-Ok "安装完成！"
+    Write-Host ""
+    Write-Host "  使用方法:"
+    Write-Host "    打开新 PowerShell 窗口后即可使用"
+    Write-Host "    jm jdk search 21     # 搜索版本"
+    Write-Host "    jm jdk install 21    # 安装"
+    Write-Host "    jm jdk use 21        # 切换版本"
+    Write-Host ""
+} catch {
+    # 仅提示错误，不重新抛出，避免在 "irm | iex" 管道模式下关闭会话
+    Write-Host ""
+    Write-Host "安装中止: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "如需获取帮助，请访问 https://github.com/dowdsa/jvmtool" -ForegroundColor Cyan
+}
