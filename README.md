@@ -16,14 +16,24 @@
 
 ### 方式一：一键脚本（下载预编译二进制，无需安装 Go）
 
+**Linux / macOS**
+
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.sh)
 ```
 
+**Windows (PowerShell)**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+# 或直接从远程下载运行
+powershell -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1)"
+```
+
 脚本会自动：
-1. 按系统/架构从 GitHub Releases 下载对应二进制（Linux/macOS x64/arm64）
-2. 安装到 `/usr/local/bin`
-3. 在 `~/.bashrc`/`~/.zshrc` 写入环境变量
+1. 按系统/架构从 GitHub Releases 下载对应二进制（Linux/macOS/Windows × x64/arm64）
+2. 安装到可执行目录（Unix: `/usr/local/bin`，Windows: `%USERPROFILE%\.jvmtool\bin`）
+3. 写入环境变量（Unix: `~/.bashrc`/`~/.zshrc`，Windows: 用户环境变量 + PowerShell Profile）
 4. 创建 `~/.jvmtool` 目录结构
 5. 校验 SHA256 校验和
 
@@ -100,7 +110,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-构建矩阵: `linux_amd64` `linux_arm64` `darwin_amd64` `darwin_arm64` `windows_amd64`
+构建矩阵: `linux_amd64` `linux_arm64` `darwin_amd64` `darwin_arm64` `windows_amd64` `windows_arm64`
 
 ## 测试
 
