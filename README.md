@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="assets/logo.png" alt="jm logo" width="160">
+</p>
+
 # jvmtool
 
-使用 Go 编写的多版本 JDK (Temurin/Adoptium) 与 Maven 管理工具。
+<p align="center">使用 Go 编写的多版本 JDK (Temurin/Adoptium) 与 Maven 管理工具。</p>
 
 ## 功能
 
