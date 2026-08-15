@@ -98,12 +98,6 @@ export M2_HOME=$JVMTOOL_HOME/maven/current
 └── cache/             下载缓存 (.tar.gz)
 ```
 
-## 测试
-
-```bash
-go test ./...
-```
-
 ## 许可证
 
 [Apache License 2.0](LICENSE)
