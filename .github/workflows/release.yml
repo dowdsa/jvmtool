@@ -83,12 +83,13 @@ jobs:
         run: |
           $env:PATH = "$env:PATH;$env:USERPROFILE\go\bin"
           wails build -platform windows/amd64 -s -skipbindings -clean
+          Copy-Item "build\bin\jm-desktop.exe" "build\bin\jm-desktop_windows_amd64.exe"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: jm-desktop_windows_amd64
-          path: desktop/jm-desktop/build/bin/jm-desktop.exe
+          path: desktop/jm-desktop/build/bin/jm-desktop_windows_amd64.exe
           if-no-files-found: error
 
   release:
