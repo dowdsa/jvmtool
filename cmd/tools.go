@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"jm/internal/config"
+	"jm/internal/env"
 	"jm/internal/manager"
 )
 
@@ -101,6 +102,13 @@ func useCmd(name, kind kindString) *cobra.Command {
 				return err
 			}
 			fmt.Printf("已切换到 %s %s\n", name, exact)
+
+			// 将环境变量块写入 shell 配置，新终端自动生效
+			if err := env.ApplyBlock(cfg.Root); err != nil {
+				fmt.Printf("提示: 写入环境变量配置失败: %v\n", err)
+			} else {
+				fmt.Printf("环境变量已写入 %s (重新加载 shell 生效)\n", env.RCFile())
+			}
 			printEnvHint(name, m.Cfg, exact)
 			return nil
 		},

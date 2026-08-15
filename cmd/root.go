@@ -38,6 +38,7 @@ func init() {
 	rootCmd.AddCommand(newToolGroup("jdk", KindJDK))
 	rootCmd.AddCommand(newToolGroup("maven", KindMaven))
 	rootCmd.AddCommand(cleanCmd())
+	rootCmd.AddCommand(envCmd())
 }
 
 // Kind type alias to keep cmd decoupled from manager internals is not needed;

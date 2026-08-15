@@ -9,6 +9,7 @@ import (
 
 	"jm/internal/config"
 	"jm/internal/download"
+	"jm/internal/env"
 	"jm/internal/version"
 )
 
@@ -194,7 +195,8 @@ func (m *Manager) Use(versionArg string) (string, error) {
 	return exact, nil
 }
 
-// Uninstall removes an installed version.
+// Uninstall removes an installed version. If it is the current version, the
+// "current" symlink and the shell environment block are cleaned up too.
 func (m *Manager) Uninstall(versionArg string) error {
 	installed, err := m.Installed()
 	if err != nil {
@@ -210,10 +212,36 @@ func (m *Manager) Uninstall(versionArg string) error {
 	if exact == "" {
 		return fmt.Errorf("%s %s is not installed", m.Kind, versionArg)
 	}
+
+	wasCurrent := false
 	if cur, err := m.Current(); err == nil && cur == exact {
+		wasCurrent = true
 		os.Remove(m.currentSymlink())
 	}
-	return os.RemoveAll(m.installPath(exact))
+
+	if err := os.RemoveAll(m.installPath(exact)); err != nil {
+		return err
+	}
+
+	if wasCurrent {
+		m.cleanupEnv()
+	}
+	return nil
+}
+
+// cleanupEnv removes the jm env block from the shell rc file so that
+// JAVA_HOME / M2_HOME no longer point at a deleted install.
+func (m *Manager) cleanupEnv() {
+	rcFile := env.RCFile()
+	changed, err := env.RemoveBlock(rcFile)
+	if err != nil {
+		fmt.Printf("提示: 清理环境变量失败: %v\n", err)
+		return
+	}
+	if changed {
+		fmt.Printf("已清理环境变量配置: %s\n", rcFile)
+		fmt.Println("提示: 重新加载 shell 后 JAVA_HOME/M2_HOME 将失效，请重新使用 'jm <tool> use <版本>' 配置。")
+	}
 }
 
 // Clean removes cached archives.
