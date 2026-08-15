@@ -50,15 +50,6 @@ bash install.sh v0.1.0          # 指定版本
 JVMTOOL_PREFIX=$HOME/.local bash install.sh   # 安装到用户目录
 ```
 
-### 方式二：源码编译
-
-```bash
-git clone https://github.com/dowdsa/jvmtool.git
-cd jvmtool
-go build -o jm .
-sudo install -m 0755 jm /usr/local/bin/
-```
-
 ## 使用
 
 ```bash
@@ -106,17 +97,6 @@ export M2_HOME=$JVMTOOL_HOME/maven/current
 ├── maven/current      指向当前 Maven 的符号链接
 └── cache/             下载缓存 (.tar.gz)
 ```
-
-## 从源码发布 Release
-
-推送 `v*` 标签会自动触发 GitHub Actions 构建全平台二进制并创建 Release：
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-构建矩阵: `linux_amd64` `linux_arm64` `darwin_amd64` `darwin_arm64` `windows_amd64` `windows_arm64`
 
 ## 测试
 
