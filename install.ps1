@@ -4,22 +4,25 @@
 .DESCRIPTION
     从 GitHub Releases 下载预编译的 jm 二进制 (Windows amd64/arm64)，
     安装到用户目录，并配置环境变量。
+    支持两种运行方式:
+      方式一 (推荐, 直接管道执行):
+        iwr https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -useb | iex
+      方式二 (下载后运行):
+        powershell -ExecutionPolicy Bypass -File install.ps1
+     指定版本: 设置环境变量 JVMTOOL_VERSION (默认 latest)
 .EXAMPLE
-    powershell -ExecutionPolicy Bypass -File install.ps1
-    powershell -ExecutionPolicy Bypass -File install.ps1 -Version v0.1.0
+    iwr https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -useb | iex
+    $env:JVMTOOL_VERSION = "v0.1.0"; iwr https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -useb | iex
 #>
-
-param(
-    [string]$Version = "latest",
-    [string]$RepoOwner = $env:JVMTOOL_REPO_OWNER,
-    [string]$RepoName = $env:JVMTOOL_REPO_NAME
-)
 
 $ErrorActionPreference = "Stop"
 
 # ---------- 可配置项 ----------
-if (-not $RepoOwner) { $RepoOwner = "dowdsa" }
-if (-not $RepoName)  { $RepoName  = "jvmtool" }
+# 注意: 为兼容 "irm <url> | iex" 管道执行，不使用 param() 块，
+# 版本号可通过环境变量 JVMTOOL_VERSION 指定。
+$Version    = if ($env:JVMTOOL_VERSION) { $env:JVMTOOL_VERSION } else { "latest" }
+$RepoOwner  = if ($env:JVMTOOL_REPO_OWNER) { $env:JVMTOOL_REPO_OWNER } else { "dowdsa" }
+$RepoName   = if ($env:JVMTOOL_REPO_NAME) { $env:JVMTOOL_REPO_NAME } else { "jvmtool" }
 
 $ToolName    = "jm"
 $BinDir      = Join-Path $HOME (Join-Path ".jvmtool" "bin")

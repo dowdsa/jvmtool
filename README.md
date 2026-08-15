@@ -25,9 +25,15 @@ bash <(curl -fsSL https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.
 **Windows (PowerShell)**
 
 ```powershell
+# 推荐：直接管道执行，无需下载脚本文件
+iwr https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -useb | iex
+```
+
+或先下载脚本再运行：
+
+```powershell
+irm https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -o install.ps1
 powershell -ExecutionPolicy Bypass -File install.ps1
-# 或直接从远程下载运行（iwr/irm 为 PowerShell 内置别名）
-powershell -ExecutionPolicy Bypass -Command "iex (irm https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1)"
 ```
 
 脚本会自动：
