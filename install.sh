@@ -22,6 +22,7 @@ PREFIX="${JVMTOOL_PREFIX:-/usr/local}"
 BIN_DIR="${JVMTOOL_BIN_DIR:-$PREFIX/bin}"
 TOOL_NAME="jm"
 BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
+LATEST_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download"
 
 # ---------- shell 配置检测 ----------
 detect_rc() {
@@ -72,7 +73,7 @@ download_binary() {
   local asset url
   asset="${TOOL_NAME}_${platform}"
   url="${BASE_URL}/v${VERSION}/${asset}"
-  [ "$VERSION" = "latest" ] && url="${BASE_URL}/latest/${asset}"
+  [ "$VERSION" = "latest" ] && url="${LATEST_URL}/${asset}"
 
   log "下载 ${TOOL_NAME} ${VERSION} (${platform})"
   log "来源: ${url}"
@@ -98,7 +99,7 @@ download_binary() {
 verify_checksum() {
   # checksum 文件同 release 一起发布，失败仅告警不阻断
   local checksum_url="${BASE_URL}/v${VERSION}/SHA256SUMS.txt"
-  [ "$VERSION" = "latest" ] && checksum_url="${BASE_URL}/latest/SHA256SUMS.txt"
+  [ "$VERSION" = "latest" ] && checksum_url="${LATEST_URL}/SHA256SUMS.txt"
   if command -v sha256sum >/dev/null 2>&1; then
     if sums="$(curl -fsSL --max-time 20 "$checksum_url" 2>/dev/null)" && [ -n "$sums" ]; then
       if [ -n "$(printf '%s\n' "$sums" | grep "^[0-9a-f]\{64\}.*${TOOL_NAME}_${platform}" )" ]; then

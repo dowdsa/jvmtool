@@ -32,6 +32,7 @@ $ToolName    = "jm"
 $BinDir      = Join-Path $HOME (Join-Path ".jvmtool" "bin")
 $JvmToolHome = if ($env:JVMTOOL_HOME) { $env:JVMTOOL_HOME } else { Join-Path $HOME ".jvmtool" }
 $BaseUrl     = "https://github.com/$RepoOwner/$RepoName/releases/download"
+$LatestUrl   = "https://github.com/$RepoOwner/$RepoName/releases/latest/download"
 $ProfilePath = $PROFILE.CurrentUserAllHosts
 
 function Write-Ok   { Write-Host "[OK]   " -ForegroundColor Green -NoNewline; Write-Host $args }
@@ -66,7 +67,7 @@ function Install-Binary {
 
     $asset = "$ToolName`_$platform.exe"
     if ($Version -eq "latest") {
-        $url = "$BaseUrl/latest/$asset"
+        $url = "$LatestUrl/$asset"
     } else {
         $url = "$BaseUrl/v$Version/$asset"
     }
@@ -99,7 +100,7 @@ function Install-Binary {
 function Verify-Checksum {
     param([string]$File, [string]$Platform)
     if ($Version -eq "latest") {
-        $sumsUrl = "$BaseUrl/latest/SHA256SUMS.txt"
+        $sumsUrl = "$LatestUrl/SHA256SUMS.txt"
     } else {
         $sumsUrl = "$BaseUrl/v$Version/SHA256SUMS.txt"
     }
