@@ -22,7 +22,6 @@ PREFIX="${JVMTOOL_PREFIX:-/usr/local}"
 BIN_DIR="${JVMTOOL_BIN_DIR:-$PREFIX/bin}"
 TOOL_NAME="jm"
 BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
-API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
 
 # ---------- shell 配置检测 ----------
 detect_rc() {
@@ -57,15 +56,11 @@ detect_platform() {
 }
 
 # ---------- 2. 解析版本 ----------
+# 使用 GitHub 的 /releases/latest/download/ 免 API 下载 latest，
+# 避免 api.github.com 被代理/防火墙拦截导致失败。
 resolve_version() {
   if [ "$VERSION" = "latest" ]; then
-    if ! command -v curl >/dev/null 2>&1; then
-      die "需要 curl，请先安装 curl"
-    fi
-    VERSION="$(curl -fsSL "$API_URL" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
-    if [ -z "$VERSION" ]; then
-      die "无法获取最新版本号，请检查 REPO_OWNER/REPO_NAME 配置"
-    fi
+    return 0
   fi
   # 去掉前缀 v (如 v0.1.0 -> 0.1.0)
   VERSION="${VERSION#v}"

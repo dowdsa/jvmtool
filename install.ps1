@@ -32,7 +32,6 @@ $ToolName    = "jm"
 $BinDir      = Join-Path $HOME (Join-Path ".jvmtool" "bin")
 $JvmToolHome = if ($env:JVMTOOL_HOME) { $env:JVMTOOL_HOME } else { Join-Path $HOME ".jvmtool" }
 $BaseUrl     = "https://github.com/$RepoOwner/$RepoName/releases/download"
-$ApiUrl      = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
 $ProfilePath = $PROFILE.CurrentUserAllHosts
 
 function Write-Ok   { Write-Host "[OK]   " -ForegroundColor Green -NoNewline; Write-Host $args }
@@ -51,27 +50,26 @@ function Get-Platform {
 }
 
 # ---------- 2. Version resolution ----------
+# 使用 GitHub 的 /releases/latest/download/ 免 API 下载 latest，
+# 避免 api.github.com 被代理/防火墙拦截导致失败。
 function Resolve-Version {
-    if ($Version -ne "latest") {
-        return $Version.TrimStart("v")
+    if ($Version -eq "latest") {
+        return "latest"
     }
-    Write-Ok "Checking latest version..."
-    try {
-        $resp = irm -Uri $ApiUrl -Headers @{ "User-Agent" = "jm-installer" }
-        $script:Version = $resp.tag_name.TrimStart("v")
-        if (-not $script:Version) { throw "empty tag" }
-    } catch {
-        Write-Fail "Cannot resolve latest version. The repository $RepoOwner/$RepoName may have no Release yet.`n`n  Fix: 1) wait for the maintainer to publish v0.1.0; or 2) pin a published version:`n       `$env:JVMTOOL_VERSION = `"v0.1.0`"; iwr https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -useb | iex"
-    }
+    return $Version.TrimStart("v")
 }
 
 # ---------- 3. Download and install ----------
 function Install-Binary {
     $platform = Get-Platform
-    Resolve-Version
+    $Version   = Resolve-Version
 
     $asset = "$ToolName`_$platform.exe"
-    $url   = "$BaseUrl/v$Version/$asset"
+    if ($Version -eq "latest") {
+        $url = "$BaseUrl/latest/$asset"
+    } else {
+        $url = "$BaseUrl/v$Version/$asset"
+    }
 
     Write-Ok "Downloading jm $Version ($platform)"
     Write-Ok "URL: $url"
@@ -100,7 +98,11 @@ function Install-Binary {
 # ---------- 4. Checksum verification ----------
 function Verify-Checksum {
     param([string]$File, [string]$Platform)
-    $sumsUrl = "$BaseUrl/v$Version/SHA256SUMS.txt"
+    if ($Version -eq "latest") {
+        $sumsUrl = "$BaseUrl/latest/SHA256SUMS.txt"
+    } else {
+        $sumsUrl = "$BaseUrl/v$Version/SHA256SUMS.txt"
+    }
     try {
         $sums = (iwr -Uri $sumsUrl -UseBasicParsing).Content
         $line = ($sums -split "`n") | Where-Object { $_ -match "$ToolName`_$Platform" } | Select-Object -First 1
