@@ -88,13 +88,14 @@ jobs:
         working-directory: desktop/jm-desktop
         run: |
           $env:PATH = "$env:PATH;$env:USERPROFILE\go\bin"
-          wails build -platform windows/amd64 -nsis -s -skipbindings -clean
+          wails build -platform windows/amd64 -nsis -skipbindings -clean
+          Rename-Item "build\bin\jm-desktop-amd64-installer.exe" "jm-desktop_windows_amd64.exe"
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: jm-desktop_windows_amd64_installer
-          path: desktop/jm-desktop/build/bin/jm-desktop-amd64-installer.exe
+          name: jm-desktop_windows_amd64
+          path: desktop/jm-desktop/build/bin/jm-desktop_windows_amd64.exe
           if-no-files-found: error
 
   release:
