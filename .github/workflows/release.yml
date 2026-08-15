@@ -47,13 +47,13 @@ jobs:
       - name: Build
         run: |
           CGO_ENABLED=0 GOOS=${{ steps.parse.outputs.os }} GOARCH=${{ steps.parse.outputs.arch }} \
-            go build -trimpath -ldflags="-s -w" -o "jvmtool_${{ matrix.platform }}${{ steps.parse.outputs.ext }}" .
+            go build -trimpath -ldflags="-s -w" -o "jm_${{ matrix.platform }}${{ steps.parse.outputs.ext }}" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: jvmtool_${{ matrix.platform }}
-          path: jvmtool_${{ matrix.platform }}${{ steps.parse.outputs.ext }}
+          name: jm_${{ matrix.platform }}
+          path: jm_${{ matrix.platform }}${{ steps.parse.outputs.ext }}
           if-no-files-found: error
 
   release:
@@ -69,7 +69,7 @@ jobs:
 
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum jvmtool_* > SHA256SUMS.txt
+        run: sha256sum jm_* > SHA256SUMS.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

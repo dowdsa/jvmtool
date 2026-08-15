@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"jvmtool/internal/config"
-	"jvmtool/internal/download"
-	"jvmtool/internal/version"
+	"jm/internal/config"
+	"jm/internal/download"
+	"jm/internal/version"
 )
 
 // Kind identifies a managed tool family.

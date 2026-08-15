@@ -39,34 +39,34 @@ JVMTOOL_PREFIX=$HOME/.local bash install.sh   # 安装到用户目录
 ```bash
 git clone https://github.com/dowdsa/jvmtool.git
 cd jvmtool
-go build -o jvmtool .
-sudo install -m 0755 jvmtool /usr/local/bin/
+go build -o jm .
+sudo install -m 0755 jm /usr/local/bin/
 ```
 
 ## 使用
 
 ```bash
 # 搜索版本
-jvmtool jdk search 17
-jvmtool maven search 3.9
+jm jdk search 17
+jm maven search 3.9
 
 # 安装
-jvmtool jdk install 21      # 支持部分版本号，自动解析最新
-jvmtool maven install 3.9.11
+jm jdk install 21      # 支持部分版本号，自动解析最新
+jm maven install 3.9.11
 
 # 切换当前版本
-jvmtool jdk use 21
-jvmtool maven use 3.9.11
+jm jdk use 21
+jm maven use 3.9.11
 
 # 查看已安装 / 当前版本
-jvmtool jdk list
-jvmtool jdk current
+jm jdk list
+jm jdk current
 
 # 卸载
-jvmtool jdk uninstall 21.0.12+8
+jm jdk uninstall 21.0.12+8
 
 # 清理缓存
-jvmtool clean
+jm clean
 ```
 
 安装脚本会在 shell 中自动配置环境变量，新终端直接可用 `java`/`mvn`：

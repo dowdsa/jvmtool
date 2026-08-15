@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# jvmtool 一键安装脚本
-# 用法: bash <(curl -fsSL https://raw.githubusercontent.com/<owner>/jvmtool/main/install.sh)
+# jm 一键安装脚本
+# 用法: bash <(curl -fsSL https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.sh)
 #   或: bash install.sh [版本号]
 #
 # 功能:
@@ -20,7 +20,7 @@ REPO_NAME="${JVMTOOL_REPO_NAME:-jvmtool}"
 VERSION="${1:-latest}"
 PREFIX="${JVMTOOL_PREFIX:-/usr/local}"
 BIN_DIR="${JVMTOOL_BIN_DIR:-$PREFIX/bin}"
-TOOL_NAME="jvmtool"
+TOOL_NAME="jm"
 BASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/download"
 API_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
 
@@ -124,7 +124,7 @@ verify_checksum() {
 setup_env() {
   mkdir -p "$JVMTOOL_HOME"
 
-  local marker="# >>> jvmtool >>>"
+  local marker="# >>> jm >>>"
   local block
   block=$(cat <<EOF
 $marker
@@ -165,7 +165,7 @@ init_dirs() {
 
 # ---------- 主流程 ----------
 main() {
-  log "开始安装 jvmtool (版本: $VERSION)"
+  log "开始安装 jm (版本: $VERSION)"
 
   resolve_version
   download_binary
@@ -182,9 +182,9 @@ main() {
   printf '\n'
   printf '  使用方法:\n'
   printf '    source %s              # 立即加载环境变量\n' "$RC_FILE"
-  printf '    jvmtool jdk search 21  # 搜索版本\n'
-  printf '    jvmtool jdk install 21 # 安装\n'
-  printf '    jvmtool jdk use 21     # 切换版本\n'
+  printf '    jm jdk search 21     # 搜索版本\n'
+  printf '    jm jdk install 21    # 安装\n'
+  printf '    jm jdk use 21        # 切换版本\n'
   printf '\n'
 }
 

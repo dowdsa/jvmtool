@@ -1,7 +1,7 @@
 package main
 
 import (
-	"jvmtool/cmd"
+	"jm/cmd"
 )
 
 func main() {

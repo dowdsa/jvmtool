@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"jvmtool/internal/config"
-	"jvmtool/internal/manager"
+	"jm/internal/config"
+	"jm/internal/manager"
 )
 
 func searchCmd(name, kind kindString) *cobra.Command {

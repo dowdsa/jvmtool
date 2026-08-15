@@ -1,4 +1,4 @@
-module jvmtool
+module jm
 
 go 1.25.13
 

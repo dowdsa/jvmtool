@@ -6,15 +6,15 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"jvmtool/internal/config"
+	"jm/internal/config"
 )
 
 var cfg = config.Default()
 
 var rootCmd = &cobra.Command{
-	Use:   "jvmtool",
+	Use:   "jm",
 	Short: "多版本 JDK 与 Maven 管理工具",
-	Long: `jvmtool 用于下载、安装并管理多版本 JDK (Temurin) 与 Maven。
+	Long: `jm 用于下载、安装并管理多版本 JDK (Temurin) 与 Maven。
 
 默认安装根目录为 $HOME/.jvmtool，可用环境变量 JVMTOOL_HOME 覆盖。
 目录结构:
