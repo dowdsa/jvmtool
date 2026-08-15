@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux_amd64
+          - linux_arm64
+          - darwin_amd64
+          - darwin_arm64
+          - windows_amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Parse platform
+        id: parse
+        run: |
+          IFS='_' read -r os arch <<< "${{ matrix.platform }}"
+          echo "os=$os" >> "$GITHUB_OUTPUT"
+          echo "arch=$arch" >> "$GITHUB_OUTPUT"
+          if [ "$os" = "windows" ]; then
+            echo "ext=.exe" >> "$GITHUB_OUTPUT"
+          else
+            echo "ext=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: |
+          CGO_ENABLED=0 GOOS=${{ steps.parse.outputs.os }} GOARCH=${{ steps.parse.outputs.arch }} \
+            go build -trimpath -ldflags="-s -w" -o "jvmtool_${{ matrix.platform }}${{ steps.parse.outputs.ext }}" .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jvmtool_${{ matrix.platform }}
+          path: jvmtool_${{ matrix.platform }}${{ steps.parse.outputs.ext }}
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum jvmtool_* > SHA256SUMS.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

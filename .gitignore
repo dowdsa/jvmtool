@@ -1,0 +1,14 @@
+# Binaries
+/jvmtool
+/jvmtool_*
+
+# Build output
+/dist/
+
+# Test & temp
+*.tmp
+*.test
+*.out
+
+# OS
+.DS_Store
