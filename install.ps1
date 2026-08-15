@@ -50,7 +50,7 @@ function Resolve-Version {
     }
     Write-Ok "查询最新版本..."
     try {
-        $resp = Invoke-RestMethod -Uri $ApiUrl -Headers @{ "User-Agent" = "jm-installer" }
+        $resp = irm -Uri $ApiUrl -Headers @{ "User-Agent" = "jm-installer" }
         $script:Version = $resp.tag_name.TrimStart("v")
         if (-not $script:Version) { throw "empty tag" }
     } catch {
@@ -76,7 +76,7 @@ function Install-Binary {
 
     $ProgressPreference = "SilentlyContinue"
     try {
-        Invoke-WebRequest -Uri $url -OutFile $tmpFile -UseBasicParsing
+        iwr -Uri $url -OutFile $tmpFile -UseBasicParsing
     } catch {
         Write-Fail "下载失败: $($_.Exception.Message)"
     }
@@ -95,7 +95,7 @@ function Verify-Checksum {
     param([string]$File, [string]$Platform)
     $sumsUrl = "$BaseUrl/v$Version/SHA256SUMS.txt"
     try {
-        $sums = (Invoke-WebRequest -Uri $sumsUrl -UseBasicParsing).Content
+        $sums = (iwr -Uri $sumsUrl -UseBasicParsing).Content
         $line = ($sums -split "`n") | Where-Object { $_ -match "$ToolName`_$Platform" } | Select-Object -First 1
         if ($line) {
             $expected = ($line -split "\s+")[0].ToLower()
