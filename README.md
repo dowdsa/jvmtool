@@ -26,8 +26,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File install.ps1
-# 或直接从远程下载运行
-powershell -ExecutionPolicy Bypass -Command "Invoke-Expression (Invoke-RestMethod https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1)"
+# 或直接从远程下载运行（iwr/irm 为 PowerShell 内置别名）
+powershell -ExecutionPolicy Bypass -Command "iex (irm https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1)"
 ```
 
 脚本会自动：
