@@ -78,18 +78,25 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.14.0
 
-      - name: Build desktop (Windows amd64)
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          $nsis = "$env:RUNNER_TEMP\nsis"
+          Invoke-WebRequest -Uri "https://downloads.sourceforge.net/project/nsis/NSIS%203/3.11/nsis-3.11.zip" -OutFile "$nsis.zip"
+          Expand-Archive -Path "$nsis.zip" -DestinationPath $nsis
+          echo "$nsis" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Build desktop NSIS installer (Windows amd64)
         working-directory: desktop/jm-desktop
         run: |
           $env:PATH = "$env:PATH;$env:USERPROFILE\go\bin"
-          wails build -platform windows/amd64 -s -skipbindings -clean
-          Copy-Item "build\bin\jm-desktop.exe" "build\bin\jm-desktop_windows_amd64.exe"
+          wails build -platform windows/amd64 -nsis -s -skipbindings -clean
 
-      - name: Upload artifact
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: jm-desktop_windows_amd64
-          path: desktop/jm-desktop/build/bin/jm-desktop_windows_amd64.exe
+          name: jm-desktop_windows_amd64_installer
+          path: desktop/jm-desktop/build/bin/jm-desktop-amd64-installer.exe
           if-no-files-found: error
 
   release:
@@ -105,7 +112,7 @@ jobs:
 
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum jm_* jm-desktop_* > SHA256SUMS.txt
+        run: sha256sum jm_* jm-desktop-* > SHA256SUMS.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
