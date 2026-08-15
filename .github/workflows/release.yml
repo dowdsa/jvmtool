@@ -111,7 +111,7 @@ jobs:
 
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum jm_* jm-desktop-* > SHA256SUMS.txt
+        run: sha256sum jm_* jm-desktop_* > SHA256SUMS.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
