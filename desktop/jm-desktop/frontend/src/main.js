@@ -24,6 +24,7 @@ function render() {
                 ${Object.entries(PRODUCTS).map(([kind, item]) => `<button class="nav-item ${kind === activeKind ? 'is-active' : ''}" data-kind="${kind}"><span class="nav-index">0${kind === 'jdk' ? '1' : '2'}</span><span><strong>${item.short}</strong><small>${item.command}</small></span><span class="nav-arrow">↗</span></button>`).join('')}
             </nav>
             <div class="sidebar-foot"><span class="live-dot"></span><span>LOCAL ENVIRONMENT</span></div>
+            <div class="version-label" id="version-label" title="当前版本">v—</div>
             <button class="settings-btn" id="settings-btn" title="设置">⚙ 设置</button>
         </aside>
         <main class="workspace">
@@ -45,6 +46,8 @@ function render() {
     bindEvents();
     loadRoot();
     loadInstalled();
+    loadVersion();
+    checkUpdateOnStartup();
 }
 
 function bindEvents() {
@@ -53,6 +56,34 @@ function bindEvents() {
     document.querySelector('#search-btn').addEventListener('click', doSearch);
     document.querySelector('#search-input').addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearch(); });
     document.querySelector('#settings-btn').addEventListener('click', openSettings);
+}
+
+async function loadVersion() {
+    try { const v = await App.GetVersion(); const el = document.querySelector('#version-label'); if (el) el.textContent = 'v' + v; }
+    catch (error) { console.error(error); }
+}
+
+async function checkUpdateOnStartup() {
+    try {
+        const info = await App.CheckUpdate();
+        if (!info || !info.version) return;
+        const skipped = await App.GetSkipVersion();
+        if (skipped === info.version) return; // 用户已跳过此版本
+        showUpdateDialog(info);
+    } catch (error) { /* 启动时静默失败 */ }
+}
+
+async function checkUpdateManual() {
+    try {
+        const info = await App.CheckUpdate();
+        if (!info || !info.version) {
+            toast('当前已是最新版本');
+        } else {
+            showUpdateDialog(info);
+        }
+    } catch (error) {
+        toast(`检查更新失败：${error}`, true);
+    }
 }
 
 async function loadRoot() {
@@ -246,6 +277,8 @@ function toast(message, isError = false) {
 async function openSettings() {
     let proxy = '';
     try { proxy = await App.GetProxy(); } catch (e) { /* ignore */ }
+    let ver = '';
+    try { ver = await App.GetVersion(); } catch (e) { /* ignore */ }
 
     const overlay = document.createElement('div');
     overlay.id = 'settings-overlay';
@@ -262,6 +295,10 @@ async function openSettings() {
                        placeholder="例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
                        value="${escapeHTML(proxy)}" autocomplete="off" />
                 <p class="settings-hint">支持 http / https / socks5 协议。留空表示不使用代理（直连）。<br>设置后立即生效，无需重启。</p>
+                <div class="settings-about">
+                    <span class="settings-about-ver">当前版本 v${escapeHTML(ver)}</span>
+                    <button class="button button-dark" id="check-update-btn">检查更新</button>
+                </div>
             </div>
             <div class="settings-foot">
                 <button class="button button-dark" id="settings-save">保存</button>
@@ -282,7 +319,48 @@ async function openSettings() {
             toast(`保存失败：${error}`, true);
         }
     });
+    overlay.querySelector('#check-update-btn').addEventListener('click', async () => {
+        close();
+        await checkUpdateManual();
+    });
     overlay.querySelector('#proxy-input').focus();
+}
+
+// ---------- 更新弹窗 ----------
+function showUpdateDialog(info) {
+    if (document.querySelector('#update-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'update-overlay';
+    overlay.className = 'settings-overlay';
+    overlay.innerHTML = `
+        <div class="settings-card update-card">
+            <div class="settings-head">
+                <h2>发现新版本</h2>
+            </div>
+            <div class="settings-body">
+                <p class="update-copy">jm 有新版本 <strong>v${escapeHTML(info.version)}</strong> 可用，建议更新。</p>
+            </div>
+            <div class="settings-foot update-foot">
+                <button class="update-skip" id="update-skip">跳过此版本</button>
+                <div class="update-actions">
+                    <button class="update-cancel" id="update-cancel">取消</button>
+                    <button class="button button-dark" id="update-install">安装</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#update-cancel').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('#update-skip').addEventListener('click', async () => {
+        try { await App.SkipVersion(info.version); } catch (e) { /* ignore */ }
+        close();
+    });
+    overlay.querySelector('#update-install').addEventListener('click', () => {
+        if (info.url) window.runtime.BrowserOpenURL(info.url);
+        close();
+    });
 }
 
 bindProgressEvents();

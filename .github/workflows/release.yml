@@ -44,11 +44,14 @@ jobs:
           else
             echo "ext=" >> "$GITHUB_OUTPUT"
           fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: |
           CGO_ENABLED=0 GOOS=${{ steps.parse.outputs.os }} GOARCH=${{ steps.parse.outputs.arch }} \
-            go build -trimpath -ldflags="-s -w" -o "jm_${{ matrix.platform }}${{ steps.parse.outputs.ext }}" .
+            go build -trimpath -ldflags="-s -w -X jm/pkg/version.Version=${{ steps.parse.outputs.version }}" \
+            -o "jm_${{ matrix.platform }}${{ steps.parse.outputs.ext }}" .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -88,7 +91,8 @@ jobs:
         working-directory: desktop/jm-desktop
         run: |
           $env:PATH = "$env:PATH;$env:USERPROFILE\go\bin"
-          wails build -platform windows/amd64 -nsis -skipbindings -clean
+          $ver = "$env:GITHUB_REF_NAME".TrimStart('v')
+          wails build -platform windows/amd64 -nsis -skipbindings -clean -ldflags "-X jm/pkg/version.Version=$ver"
           Rename-Item "build\bin\jm-desktop-amd64-installer.exe" "jm-desktop_windows_amd64.exe"
 
       - name: Upload installer

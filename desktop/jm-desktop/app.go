@@ -10,6 +10,8 @@ import (
 
 	"jm/pkg/config"
 	"jm/pkg/manager"
+	"jm/pkg/update"
+	"jm/pkg/version"
 )
 
 // App struct
@@ -52,6 +54,40 @@ func (a *App) GetProxy() string {
 // SetProxy persists the proxy setting. Empty string clears it.
 func (a *App) SetProxy(proxy string) error {
 	return a.cfg.SaveProxy(proxy)
+}
+
+// GetVersion returns the current app version.
+func (a *App) GetVersion() string {
+	return version.Version
+}
+
+// UpdateInfo describes an available update.
+type UpdateInfo struct {
+	Version string `json:"version"`
+	URL     string `json:"url"`
+}
+
+// CheckUpdate checks for a newer version. Returns empty Version if up-to-date.
+func (a *App) CheckUpdate() UpdateInfo {
+	rel, err := update.Latest(a.ctx)
+	if err != nil {
+		return UpdateInfo{}
+	}
+	latest := rel.Version()
+	if !update.IsNewer(version.Version, latest) {
+		return UpdateInfo{}
+	}
+	return UpdateInfo{Version: latest, URL: rel.HTMLURL}
+}
+
+// SkipVersion marks the given version to be skipped (no more popups for it).
+func (a *App) SkipVersion(ver string) error {
+	return a.cfg.SaveSkipVersion(ver)
+}
+
+// GetSkipVersion returns the version the user chose to skip.
+func (a *App) GetSkipVersion() string {
+	return a.cfg.GetSkipVersion()
 }
 
 // VersionInfo describes one installed version.

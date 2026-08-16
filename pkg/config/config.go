@@ -21,7 +21,8 @@ type Config struct {
 
 // Settings is persisted to <root>/config.json.
 type Settings struct {
-	Proxy string `json:"proxy,omitempty"`
+	Proxy       string `json:"proxy,omitempty"`
+	SkipVersion string `json:"skip_version,omitempty"`
 }
 
 // settingsCache holds the in-memory settings so ProxyURL can read them without
@@ -103,6 +104,29 @@ func (c *Config) GetProxy() string {
 	settingsMu.RLock()
 	defer settingsMu.RUnlock()
 	return settings.Proxy
+}
+
+// GetSkipVersion returns the version the user chose to skip ("" if none).
+func (c *Config) GetSkipVersion() string {
+	settingsMu.RLock()
+	defer settingsMu.RUnlock()
+	return settings.SkipVersion
+}
+
+// SaveSkipVersion persists the version the user wants to skip.
+func (c *Config) SaveSkipVersion(version string) error {
+	if err := c.Ensure(); err != nil {
+		return err
+	}
+	settingsMu.Lock()
+	settings.SkipVersion = version
+	s := settings
+	settingsMu.Unlock()
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(c.SettingsPath(), data, 0o644)
 }
 
 // ProxyURL returns the proxy URL to use for outbound requests, or nil to use

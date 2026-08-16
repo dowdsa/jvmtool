@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+// Version is the current tool version. Override at build time with:
+//
+//	go build -ldflags "-X jm/pkg/version.Version=v0.3.0"
+var Version = "dev"
+
 // Artifact is a downloadable distribution.
 type Artifact struct {
 	Version  string

@@ -4,6 +4,8 @@ go 1.25.13
 
 require github.com/wailsapp/wails/v2 v2.14.0
 
+require golang.org/x/term v0.45.0 // indirect
+
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
@@ -31,7 +33,7 @@ require (
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.39.0 // indirect
 	jm v0.0.0
 )

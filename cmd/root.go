@@ -1,19 +1,24 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"jm/pkg/config"
+	"jm/pkg/update"
+	"jm/pkg/version"
 )
 
 var cfg = config.Default()
 
 var rootCmd = &cobra.Command{
-	Use:   "jm",
-	Short: "多版本 JDK 与 Maven 管理工具",
+	Use:     "jm",
+	Short:   "多版本 JDK 与 Maven 管理工具",
+	Version: version.Version,
 	Long: `jm 用于下载、安装并管理多版本 JDK (Temurin) 与 Maven。
 
 默认安装根目录为 $HOME/.jvmtool，可用环境变量 JVMTOOL_HOME 覆盖。
@@ -40,6 +45,36 @@ func init() {
 	rootCmd.AddCommand(newToolGroup("maven", KindMaven))
 	rootCmd.AddCommand(cleanCmd())
 	rootCmd.AddCommand(envCmd())
+	rootCmd.AddCommand(updateCmd())
+}
+
+func updateCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "update",
+		Short: "检查并更新 jm 到最新版本",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			defer cancel()
+
+			fmt.Printf("当前版本: %s\n", version.Version)
+			rel, err := update.Latest(ctx)
+			if err != nil {
+				return fmt.Errorf("检查更新失败: %w", err)
+			}
+			latest := rel.Version()
+			fmt.Printf("最新版本: %s\n", latest)
+
+			if !update.IsNewer(version.Version, latest) {
+				fmt.Println("已是最新版本。")
+				return nil
+			}
+
+			fmt.Printf("发现新版本 %s\n", latest)
+			fmt.Printf("下载地址: %s\n", rel.HTMLURL)
+			fmt.Println("请访问上述地址下载对应平台的安装包。")
+			return nil
+		},
+	}
 }
 
 // Kind type alias to keep cmd decoupled from manager internals is not needed;
