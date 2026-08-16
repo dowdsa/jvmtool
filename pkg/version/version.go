@@ -11,9 +11,11 @@ type Artifact struct {
 	Version  string
 	Filename string
 	URL      string
-	Size     int64
-	SHA256   string
-	SHA512   string
+	// Mirrors are alternative (typically faster) download URLs, tried in order.
+	Mirrors []string
+	Size    int64
+	SHA256  string
+	SHA512  string
 }
 
 // Source is a remote provider of tool distributions.

@@ -89,12 +89,12 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 		return nil, err
 	}
 
-	// 1. download to cache
+	// 1. download to cache (try primary URL first, then mirrors)
 	cacheFile := filepath.Join(m.Cfg.CacheDir(), art.Filename)
 	if progress != nil {
 		progress(0, art.Size, 0)
 	}
-	if err := m.dl.Download(ctx, art.URL, cacheFile, download.ProgressCallback(progress)); err != nil {
+	if err := m.downloadWithMirrors(ctx, art, cacheFile, progress); err != nil {
 		return nil, fmt.Errorf("download failed: %w", err)
 	}
 	if progress != nil {
@@ -142,6 +142,32 @@ func (m *Manager) verify(path string, art *version.Artifact) (bool, error) {
 		return download.VerifySHA256(path, art.SHA256)
 	}
 	return download.VerifySHA512(path, art.SHA512)
+}
+
+// downloadWithMirrors downloads from the primary URL, falling back to mirror
+// URLs if the primary fails or is cancelled. Partial files are kept so each
+// attempt resumes from where it left off.
+func (m *Manager) downloadWithMirrors(ctx context.Context, art *version.Artifact, cacheFile string, progress ProgressFunc) error {
+	urls := append([]string{art.URL}, art.Mirrors...)
+	var lastErr error
+	for _, u := range urls {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := m.dl.Download(ctx, u, cacheFile, download.ProgressCallback(progress)); err != nil {
+			lastErr = err
+			if ctx.Err() != nil {
+				// cancelled: do not fall through to mirrors
+				return err
+			}
+			continue
+		}
+		return nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("all download sources failed")
+	}
+	return lastErr
 }
 
 // Installed returns installed versions (excluding "current").

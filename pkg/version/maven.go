@@ -100,7 +100,10 @@ func (s *MavenSource) Resolve(ctx context.Context, version string) (*Artifact, e
 		Version:  exact,
 		Filename: filename,
 		URL:      base + "/" + filename,
-		SHA512:   s.fetchSHA512(ctx, base+"/"+filename+".sha512"),
+		Mirrors: []string{
+			fmt.Sprintf("https://mirrors.huaweicloud.com/apache/maven/maven-3/%s/binaries/%s", exact, filename),
+		},
+		SHA512: s.fetchSHA512(ctx, base+"/"+filename+".sha512"),
 	}, nil
 }
 

@@ -227,6 +227,7 @@ func (s *JDKSource) Resolve(ctx context.Context, version string) (*Artifact, err
 				Version:  exact,
 				Filename: pkg.Name,
 				URL:      pkg.Link,
+				Mirrors:  jdkMirrors(feature, s, pkg.Name),
 				Size:     pkg.Size,
 				SHA256:   pkg.Checksum,
 			}, nil
@@ -263,4 +264,13 @@ func (s *JDKSource) resolveExactVersion(ctx context.Context, query string) (stri
 		return "", fmt.Errorf("no JDK version matches %q", query)
 	}
 	return releases[0], nil
+}
+
+// jdkMirrors builds faster mirror URLs for a JDK package, ordered by preference.
+// TUNA (Tsinghua) mirrors the Adoptium release tree under /Adoptium/<feature>/jdk/<arch>/<os>/.
+func jdkMirrors(feature int, s *JDKSource, filename string) []string {
+	return []string{
+		fmt.Sprintf("https://mirrors.tuna.tsinghua.edu.cn/Adoptium/%d/jdk/%s/%s/%s",
+			feature, s.Arch, s.OS, filename),
+	}
 }
