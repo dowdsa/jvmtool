@@ -107,6 +107,9 @@ jobs:
     needs: [build, desktop]
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -117,8 +120,18 @@ jobs:
         working-directory: dist
         run: sha256sum jm_* jm-desktop_* > SHA256SUMS.txt
 
+      - name: Extract changelog section
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VER" '
+            $0 ~ "^## \[" ver "\]" { insec=1; next }
+            insec && $0 ~ "^## \[" { insec=0 }
+            insec { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then echo "（CHANGELOG.md 中未找到 [${VER}] 章节）" > release-notes.md; fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: release-notes.md
