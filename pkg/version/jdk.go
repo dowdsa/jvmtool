@@ -17,6 +17,7 @@ const adoptiumAPI = "https://api.adoptium.net/v3"
 // JDKSource implements Source backed by the Adoptium (Temurin) API.
 type JDKSource struct {
 	Arch      string
+	OS        string
 	ImageType string // jdk | jre
 	Client    *http.Client
 }
@@ -24,6 +25,7 @@ type JDKSource struct {
 func NewJDKSource() *JDKSource {
 	return &JDKSource{
 		Arch:      hostArch(),
+		OS:        hostOS(),
 		ImageType: "jdk",
 		Client:    &http.Client{},
 	}
@@ -37,6 +39,18 @@ func hostArch() string {
 		return "aarch64"
 	default:
 		return runtime.GOARCH
+	}
+}
+
+// hostOS returns the Adoptium "os" query param for the current runtime.
+func hostOS() string {
+	switch runtime.GOOS {
+	case "darwin":
+		return "mac"
+	case "windows":
+		return "windows"
+	default:
+		return "linux"
 	}
 }
 
@@ -54,7 +68,7 @@ func (s *JDKSource) List(ctx context.Context, query string, limit int) ([]string
 		q.Set("heap_size", "normal")
 		q.Set("image_type", s.ImageType)
 		q.Set("jvm_impl", "hotspot")
-		q.Set("os", "linux")
+		q.Set("os", s.OS)
 		q.Set("project", "jdk")
 		q.Set("release_type", "ga")
 		q.Set("sort_order", "DESC")
@@ -149,7 +163,7 @@ func (s *JDKSource) Resolve(ctx context.Context, version string) (*Artifact, err
 		q.Set("heap_size", "normal")
 		q.Set("image_type", s.ImageType)
 		q.Set("jvm_impl", "hotspot")
-		q.Set("os", "linux")
+		q.Set("os", s.OS)
 		q.Set("project", "jdk")
 		q.Set("vendor", "eclipse")
 		q.Set("page", fmt.Sprintf("%d", page))

@@ -101,7 +101,82 @@ async function doSearch() {
 
 async function doUse(version) { try { await App.Use(activeKind, version); toast(`已切换至 ${PRODUCTS[activeKind].short} ${version}`); loadInstalled(); } catch (error) { toast(`切换失败：${error}`, true); } }
 async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
-async function doInstall(version) { if (installing) return; installing = true; toast(`正在安装 ${PRODUCTS[activeKind].short} ${version}…`); try { await App.Install(activeKind, version); toast(`${version} 已安装完成`); loadInstalled(); } catch (error) { toast(`安装失败：${error}`, true); } finally { installing = false; } }
+async function doInstall(version) {
+    if (installing) return;
+    installing = true;
+    const kind = activeKind;
+    showProgress(kind, version, 0, 0);
+    try {
+        await App.Install(kind, version);
+        hideProgress();
+        toast(`${version} 已安装完成`);
+        loadInstalled();
+    } catch (error) {
+        hideProgress();
+        toast(`安装失败：${error}`, true);
+    } finally {
+        installing = false;
+    }
+}
+
+// ---------- 下载进度 ----------
+function formatSize(bytes) {
+    if (!bytes || bytes <= 0) return '—';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let value = bytes, index = 0;
+    while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; }
+    return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function showProgress(kind, version, done, total) {
+    let overlay = document.querySelector('#install-progress');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'install-progress';
+        overlay.className = 'progress-overlay';
+        overlay.innerHTML = `
+            <div class="progress-card">
+                <div class="progress-head"><span id="progress-title">正在下载</span><span id="progress-percent">0%</span></div>
+                <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+                <div class="progress-meta"><span id="progress-version">—</span><span id="progress-size">0 B / —</span></div>
+            </div>`;
+        document.body.appendChild(overlay);
+    }
+    updateProgress(kind, version, done, total);
+}
+
+function updateProgress(kind, version, done, total) {
+    const title = document.querySelector('#progress-title');
+    const percent = document.querySelector('#progress-percent');
+    const fill = document.querySelector('#progress-fill');
+    const ver = document.querySelector('#progress-version');
+    const size = document.querySelector('#progress-size');
+    if (!title) return;
+    title.textContent = `正在下载 ${PRODUCTS[kind]?.short || kind}`;
+    ver.textContent = version;
+    if (total > 0) {
+        const pct = Math.min(100, Math.round((done / total) * 100));
+        percent.textContent = `${pct}%`;
+        fill.style.width = `${pct}%`;
+        size.textContent = `${formatSize(done)} / ${formatSize(total)}`;
+    } else {
+        percent.textContent = '';
+        fill.style.width = '0%';
+        size.textContent = `${formatSize(done)}`;
+    }
+}
+
+function hideProgress() {
+    const overlay = document.querySelector('#install-progress');
+    if (overlay) overlay.remove();
+}
+
+function bindProgressEvents() {
+    window.runtime.EventsOn('install:progress', (payload) => {
+        if (!payload) return;
+        updateProgress(payload.kind, payload.version, payload.done, payload.total);
+    });
+}
 
 function toast(message, isError = false) {
     const toastElement = document.createElement('div');
@@ -112,4 +187,5 @@ function toast(message, isError = false) {
     setTimeout(() => { toastElement.classList.remove('is-visible'); setTimeout(() => toastElement.remove(), 180); }, 3400);
 }
 
+bindProgressEvents();
 render();

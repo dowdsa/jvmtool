@@ -93,6 +93,13 @@ h2 { margin:0; font:800 24px/1.1 "Playfair Display","Microsoft YaHei",serif; let
 .toast { position:fixed; right:30px; bottom:26px; max-width:370px; padding:13px 17px; border:1px solid var(--ink); color:white; background:var(--ink); box-shadow:5px 5px 0 #c6c6c0; font-size:12px; opacity:0; transform:translateY(8px); transition:.18s; z-index:10; }
 .toast.is-visible { opacity:1; transform:none; }
 .toast.is-error { border-color:var(--danger); background:var(--danger); }
+.progress-overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(16,16,16,.35); z-index:20; }
+.progress-card { width:min(420px,86vw); padding:24px 26px; border:1px solid var(--ink); background:var(--paper); box-shadow:8px 8px 0 rgba(16,16,16,.9); }
+.progress-head { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:14px; font:700 14px "DM Mono",monospace; color:var(--ink); }
+.progress-head span:last-child { font:500 20px "DM Mono",monospace; }
+.progress-track { height:8px; background:var(--line); }
+.progress-fill { height:100%; width:0; background:var(--ink); transition:width .18s ease; }
+.progress-meta { display:flex; justify-content:space-between; margin-top:11px; color:var(--muted); font:500 11px "DM Mono",monospace; }
 @keyframes spin { to { transform:rotate(360deg); } }
 @media (max-width:800px) { #app { grid-template-columns:1fr; } .sidebar { min-height:auto; padding:18px 22px; } .product-nav { display:flex; margin-top:23px; } .nav-item { flex:1; } .sidebar-foot { display:none; } .workspace { padding:0 25px 35px; } .hero { padding:45px 0 35px; } .content-grid { grid-template-columns:1fr; gap:40px; } }
 @media (max-width:570px) { .hero { align-items:flex-start; flex-direction:column; } .stats { grid-template-columns:1fr 1fr; } .stat-note { display:none; } .stat:nth-child(2) { border-right:0; } .command-card { width:100%; } .root-path { max-width:55%; } }

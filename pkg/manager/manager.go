@@ -67,6 +67,15 @@ func (m *Manager) Search(ctx context.Context, query string, limit int) ([]string
 
 // Install downloads, verifies and extracts a version.
 func (m *Manager) Install(ctx context.Context, versionArg string) (*version.Artifact, error) {
+	return m.InstallWithProgress(ctx, versionArg, nil)
+}
+
+// ProgressFunc reports download progress (done, total) in bytes.
+type ProgressFunc func(done, total int64)
+
+// InstallWithProgress downloads, verifies and extracts a version, reporting
+// download progress via progress if non-nil.
+func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, progress ProgressFunc) (*version.Artifact, error) {
 	art, err := m.Source.Resolve(ctx, versionArg)
 	if err != nil {
 		return nil, err
@@ -82,13 +91,15 @@ func (m *Manager) Install(ctx context.Context, versionArg string) (*version.Arti
 
 	// 1. download to cache
 	cacheFile := filepath.Join(m.Cfg.CacheDir(), art.Filename)
-	fmt.Printf("Downloading %s %s (%s)...\n", m.Kind, art.Version, humanSize(art.Size))
-	bar := download.NewProgressBar(art.Filename)
-	if err := m.dl.Download(art.URL, cacheFile, bar.Callback()); err != nil {
-		bar.Done()
+	if progress != nil {
+		progress(0, art.Size)
+	}
+	if err := m.dl.Download(art.URL, cacheFile, download.ProgressCallback(progress)); err != nil {
 		return nil, fmt.Errorf("download failed: %w", err)
 	}
-	bar.Done()
+	if progress != nil {
+		progress(art.Size, art.Size)
+	}
 
 	// 2. verify checksum
 	if ok, err := m.verify(cacheFile, art); err != nil {
@@ -98,7 +109,7 @@ func (m *Manager) Install(ctx context.Context, versionArg string) (*version.Arti
 	}
 
 	// 3. extract
-	if err := extractTarGz(cacheFile, m.toolDir()); err != nil {
+	if err := extractArchive(cacheFile, m.toolDir()); err != nil {
 		return nil, fmt.Errorf("extract failed: %w", err)
 	}
 
@@ -123,7 +134,6 @@ func (m *Manager) Install(ctx context.Context, versionArg string) (*version.Arti
 			}
 		}
 	}
-	fmt.Printf("Installed %s %s\n", m.Kind, art.Version)
 	return art, nil
 }
 

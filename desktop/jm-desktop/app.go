@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"jm/pkg/config"
 	"jm/pkg/manager"
 )
@@ -91,11 +93,25 @@ func (a *App) Uninstall(kind, version string) error {
 	return m.Uninstall(version)
 }
 
-// Install downloads and installs a version, reporting progress via events.
+// InstallProgress is emitted to the frontend during download.
+type InstallProgress struct {
+	Kind    string `json:"kind"`
+	Version string `json:"version"`
+	Done    int64  `json:"done"`
+	Total   int64  `json:"total"`
+}
+
+// Install downloads and installs a version. Progress is emitted via the
+// "install:progress" event; the promise resolves when done or fails.
 func (a *App) Install(kind, version string) error {
 	m := manager.NewManager(a.cfg, manager.Kind(kind))
-	// Install is synchronous and may take a while; the frontend should
-	// call it in a goroutine via a non-blocking wrapper if desired.
-	_, err := m.Install(a.ctx, version)
+	_, err := m.InstallWithProgress(a.ctx, version, func(done, total int64) {
+		runtime.EventsEmit(a.ctx, "install:progress", InstallProgress{
+			Kind:    kind,
+			Version: version,
+			Done:    done,
+			Total:   total,
+		})
+	})
 	return err
 }
