@@ -207,13 +207,26 @@ func (m *Manager) Installed() ([]string, error) {
 	return out, nil
 }
 
-// Current resolves the current version via the symlink.
+// Current resolves the current version via the symlink. On Windows, if the
+// symlink is missing (no admin/dev mode), it falls back to the env var.
 func (m *Manager) Current() (string, error) {
 	target, err := os.Readlink(m.currentSymlink())
-	if err != nil {
-		return "", err
+	if err == nil {
+		return filepath.Base(target), nil
 	}
-	return filepath.Base(target), nil
+	if env.IsWindows() {
+		key := "JAVA_HOME"
+		if m.Kind == KindMaven {
+			key = "M2_HOME"
+		}
+		if v := os.Getenv(key); v != "" {
+			// ensure it's actually under our tool dir
+			if strings.HasPrefix(filepath.Clean(v), filepath.Clean(m.toolDir())+string(os.PathSeparator)) {
+				return filepath.Base(v), nil
+			}
+		}
+	}
+	return "", err
 }
 
 // Use switches the current version by updating the symlink.
@@ -238,13 +251,41 @@ func (m *Manager) Use(versionArg string) (string, error) {
 		if os.IsExist(err) {
 			os.Remove(m.currentSymlink())
 			if err := os.Symlink(m.installPath(exact), m.currentSymlink()); err != nil {
-				return "", err
+				if !env.IsWindows() {
+					return "", err
+				}
+				// Windows symlink may require admin/dev mode; the env vars
+				// below still point at the correct version, so continue.
 			}
-		} else {
+		} else if !env.IsWindows() {
 			return "", err
 		}
 	}
+
+	// Update the environment so new terminals pick up the change.
+	m.applyEnv(exact)
 	return exact, nil
+}
+
+// applyEnv updates persistent environment variables for the active version.
+// On Windows it writes the user env vars (JAVA_HOME/M2_HOME) and updates PATH;
+// on Unix it writes the shell rc block.
+func (m *Manager) applyEnv(version string) {
+	if env.IsWindows() {
+		bin := filepath.Join(m.installPath(version), "bin")
+		switch m.Kind {
+		case KindJDK:
+			env.SetUserEnvVar("JAVA_HOME", m.installPath(version))
+		case KindMaven:
+			env.SetUserEnvVar("M2_HOME", m.installPath(version))
+			env.SetUserEnvVar("MAVEN_HOME", m.installPath(version))
+		}
+		env.AddPath(bin)
+		return
+	}
+	if err := env.ApplyBlock(m.Cfg.Root); err != nil {
+		fmt.Printf("提示: 写入环境变量配置失败: %v\n", err)
+	}
 }
 
 // Uninstall removes an installed version. If it is the current version, the
