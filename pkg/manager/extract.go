@@ -148,7 +148,22 @@ func safeExtractEntry(base string, hdr *tar.Header, tr io.Reader) error {
 		}
 		return out.Close()
 	case tar.TypeSymlink:
-		return os.Symlink(hdr.Linkname, target)
+		// Only allow symlinks whose resolved target stays inside the
+		// extraction base. Reject absolute links, drive-relative links that
+		// start with a separator ("/x" or "\x" resolve against the drive
+		// root on Windows), and anything that escapes the base directory.
+		link := hdr.Linkname
+		if filepath.IsAbs(link) || strings.HasPrefix(link, "/") || strings.HasPrefix(link, "\\") {
+			return fmt.Errorf("illegal absolute symlink target in archive: %s", link)
+		}
+		resolved := filepath.Clean(filepath.Join(filepath.Dir(target), link))
+		if !strings.HasPrefix(resolved, filepath.Clean(base)+string(os.PathSeparator)) {
+			return fmt.Errorf("illegal symlink target in archive: %s", link)
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		return os.Symlink(link, target)
 	default:
 		return nil
 	}

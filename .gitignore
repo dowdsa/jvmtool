@@ -16,3 +16,9 @@ go.work.sum
 
 # OS
 .DS_Store
+
+# Project memory (AI 学习笔记，仅本地，不入库)
+PROJECT_MEMORY.md
+
+# Dependencies (local installs)
+node_modules/

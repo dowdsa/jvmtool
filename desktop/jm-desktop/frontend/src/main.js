@@ -136,6 +136,11 @@ async function doSearch() {
 async function doUse(version) { try { await App.Use(activeKind, version); toast(`已切换至 ${PRODUCTS[activeKind].short} ${version}`); loadInstalled(); } catch (error) { toast(`切换失败：${error}`, true); } }
 async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
 
+function removeProgressRow(version) {
+    const row = document.querySelector(`[data-progress-version="${version}"]`);
+    if (row) row.remove();
+}
+
 async function doInstall(version) {
     if (installing) return;
     installing = true;
@@ -143,27 +148,28 @@ async function doInstall(version) {
     const kind = activeKind;
     renderProgress(kind, version, 0, 0, 0, 'downloading');
     try {
-        await App.Install(kind, version);
-        const container = document.querySelector('#search-results');
-        const target = container.querySelector(`[data-progress-version="${version}"]`);
-        if (target) target.remove();
-        toast(`${version} 已安装完成`);
-        loadInstalled();
-    } catch (error) {
-        const message = String(error);
-        if (message.includes('取消') && !paused) {
-            const container = document.querySelector('#search-results');
-            const target = container.querySelector(`[data-progress-version="${version}"]`);
-            if (target) target.remove();
-            toast('已取消下载', true);
-        } else if (paused) {
+        const result = await App.Install(kind, version);
+        const status = result && result.status;
+        const message = (result && result.message) || '未知错误';
+        if (status === 'ok') {
+            removeProgressRow(version);
+            toast(`${version} 已安装完成`);
+            loadInstalled();
+        } else if (status === 'paused') {
             // 暂停：保留进度行，更新为已暂停状态
             markProgressPaused(version);
+        } else if (status === 'cancelled') {
+            removeProgressRow(version);
+            toast('已取消下载', true);
         } else {
             const row = document.querySelector(`[data-progress-version="${version}"]`);
             if (row) updateProgressRow(row, kind, version, 0, 0, 0, 'error');
-            toast(`安装失败：${error}`, true);
+            toast(`安装失败：${message}`, true);
         }
+    } catch (error) {
+        const row = document.querySelector(`[data-progress-version="${version}"]`);
+        if (row) updateProgressRow(row, kind, version, 0, 0, 0, 'error');
+        toast(`安装失败：${error}`, true);
     } finally {
         installing = false;
     }

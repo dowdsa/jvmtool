@@ -4,3 +4,7 @@ node_modules
 frontend/dist
 frontend/package.json.md5
 frontend/wailsjs
+
+# Local build artifacts
+jm-desktop.exe
+build/bin/*.exe

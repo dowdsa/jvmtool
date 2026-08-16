@@ -8,7 +8,17 @@ func SetUserEnvVar(name, value string) error {
 	return nil
 }
 
+// GetUserEnvVar is a no-op on non-Windows platforms.
+func GetUserEnvVar(name string) (string, error) {
+	return "", nil
+}
+
 // AddPath is a no-op on non-Windows platforms.
 func AddPath(dir string) error {
+	return nil
+}
+
+// RemovePathEntry is a no-op on non-Windows platforms.
+func RemovePathEntry(dir string) error {
 	return nil
 }

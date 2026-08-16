@@ -69,9 +69,12 @@ func (s *MavenSource) List(ctx context.Context, query string, limit int) ([]stri
 			continue
 		}
 		out = append(out, v)
-		if limit > 0 && len(out) >= limit {
-			break
-		}
+	}
+	// The metadata lists versions in ascending order; the Source contract is
+	// "newest first", so sort descending before capping.
+	sortVersionsDesc(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }

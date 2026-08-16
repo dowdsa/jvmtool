@@ -114,10 +114,11 @@ func uninstallCmd(name, kind kindString) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m := manager.NewManager(cfg, manager.Kind(kind))
-			if err := m.Uninstall(args[0]); err != nil {
+			exact, err := m.Uninstall(args[0])
+			if err != nil {
 				return err
 			}
-			fmt.Printf("已卸载 %s %s\n", name, args[0])
+			fmt.Printf("已卸载 %s %s\n", name, exact)
 			return nil
 		},
 	}

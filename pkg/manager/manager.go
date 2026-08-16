@@ -120,11 +120,13 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 		progress(art.Size, art.Size, 0)
 	}
 
-	// 2. verify checksum
+	// 2. verify checksum; on failure drop the cached file so a retry
+	// re-downloads instead of failing forever against the same corrupt file.
 	if ok, err := m.verify(cacheFile, art); err != nil {
 		return nil, err
 	} else if !ok {
-		return nil, fmt.Errorf("checksum verification failed for %s", cacheFile)
+		os.Remove(cacheFile)
+		return nil, fmt.Errorf("checksum verification failed for %s（已删除缓存，请重试）", cacheFile)
 	}
 
 	// 3. extract
@@ -134,12 +136,17 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 
 	// Archives unpack with a wrapper dir ("jdk-<ver>" / "apache-maven-<ver>");
 	// rename to the plain version for consistent naming.
+	renameFailed := func(from string, err error) (*version.Artifact, error) {
+		// remove the half-extracted wrapper dir instead of leaving junk
+		os.RemoveAll(from)
+		return nil, fmt.Errorf("rename %s: %w", from, err)
+	}
 	switch m.Kind {
 	case KindMaven:
 		from := filepath.Join(m.toolDir(), "apache-maven-"+art.Version)
 		if _, err := os.Stat(from); err == nil {
 			if err := os.Rename(from, m.installPath(art.Version)); err != nil {
-				return nil, fmt.Errorf("rename %s: %w", from, err)
+				return renameFailed(from, err)
 			}
 		}
 	case KindJDK:
@@ -147,7 +154,7 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 			from := filepath.Join(m.toolDir(), candidate)
 			if _, err := os.Stat(from); err == nil {
 				if err := os.Rename(from, m.installPath(art.Version)); err != nil {
-					return nil, fmt.Errorf("rename %s: %w", from, err)
+					return renameFailed(from, err)
 				}
 				break
 			}
@@ -223,8 +230,10 @@ func (m *Manager) Current() (string, error) {
 		if m.Kind == KindMaven {
 			key = "M2_HOME"
 		}
-		if v := os.Getenv(key); v != "" {
-			// ensure it's actually under our tool dir
+		// Read the persistent user value from the registry instead of
+		// os.Getenv: in a long-running process (GUI) the process env is a
+		// snapshot from startup and would be stale after SetUserEnvVar.
+		if v, rerr := env.GetUserEnvVar(key); rerr == nil && v != "" {
 			if strings.HasPrefix(filepath.Clean(v), filepath.Clean(m.toolDir())+string(os.PathSeparator)) {
 				return filepath.Base(v), nil
 			}
@@ -240,13 +249,7 @@ func (m *Manager) Use(versionArg string) (string, error) {
 		return "", err
 	}
 	// resolve partial version against installed list
-	var exact string
-	for _, v := range installed {
-		if v == versionArg || strings.HasPrefix(v, versionArg) || strings.HasPrefix(v, versionArg+".") {
-			exact = v
-			break
-		}
-	}
+	exact := matchInstalled(installed, versionArg)
 	if exact == "" {
 		return "", fmt.Errorf("%s %s is not installed; run '%s %s install %s' first",
 			m.Kind, versionArg, os.Args[0], m.Kind, versionArg)
@@ -294,20 +297,15 @@ func (m *Manager) applyEnv(version string) {
 
 // Uninstall removes an installed version. If it is the current version, the
 // "current" symlink and the shell environment block are cleaned up too.
-func (m *Manager) Uninstall(versionArg string) error {
+func (m *Manager) Uninstall(versionArg string) (string, error) {
 	installed, err := m.Installed()
 	if err != nil {
-		return err
+		return "", err
 	}
-	var exact string
-	for _, v := range installed {
-		if v == versionArg {
-			exact = v
-			break
-		}
-	}
+	// support partial version arguments, mirroring `use`
+	exact := matchInstalled(installed, versionArg)
 	if exact == "" {
-		return fmt.Errorf("%s %s is not installed", m.Kind, versionArg)
+		return "", fmt.Errorf("%s %s is not installed", m.Kind, versionArg)
 	}
 
 	wasCurrent := false
@@ -317,18 +315,34 @@ func (m *Manager) Uninstall(versionArg string) error {
 	}
 
 	if err := os.RemoveAll(m.installPath(exact)); err != nil {
-		return err
+		return "", err
 	}
 
 	if wasCurrent {
-		m.cleanupEnv()
+		m.cleanupEnv(exact)
 	}
-	return nil
+	return exact, nil
 }
 
-// cleanupEnv removes the jm env block from the shell rc file so that
-// JAVA_HOME / M2_HOME no longer point at a deleted install.
-func (m *Manager) cleanupEnv() {
+// cleanupEnv removes the environment configuration pointing at a deleted
+// install. On Unix it removes the jm block from the shell rc file; on Windows
+// it clears the matching user registry vars and removes the bin dir from the
+// user PATH.
+func (m *Manager) cleanupEnv(version string) {
+	if env.IsWindows() {
+		home := m.installPath(version)
+		switch m.Kind {
+		case KindJDK:
+			clearUserEnvIfMatches("JAVA_HOME", home)
+		case KindMaven:
+			clearUserEnvIfMatches("M2_HOME", home)
+			clearUserEnvIfMatches("MAVEN_HOME", home)
+		}
+		if err := env.RemovePathEntry(filepath.Join(home, "bin")); err != nil {
+			fmt.Printf("提示: 清理 PATH 失败: %v\n", err)
+		}
+		return
+	}
 	rcFile := env.RCFile()
 	changed, err := env.RemoveBlock(rcFile)
 	if err != nil {
@@ -339,6 +353,29 @@ func (m *Manager) cleanupEnv() {
 		fmt.Printf("已清理环境变量配置: %s\n", rcFile)
 		fmt.Println("提示: 重新加载 shell 后 JAVA_HOME/M2_HOME 将失效，请重新使用 'jm <tool> use <版本>' 配置。")
 	}
+}
+
+// clearUserEnvIfMatches deletes a user environment variable when its current
+// value points at path (compared case-insensitively).
+func clearUserEnvIfMatches(name, path string) {
+	v, err := env.GetUserEnvVar(name)
+	if err != nil || v == "" {
+		return
+	}
+	if strings.EqualFold(filepath.Clean(v), filepath.Clean(path)) {
+		_ = env.SetUserEnvVar(name, "")
+	}
+}
+
+// matchInstalled resolves a (possibly partial) version argument against the
+// installed list: exact match, plain prefix match, or prefix-plus-dot match.
+func matchInstalled(installed []string, arg string) string {
+	for _, v := range installed {
+		if v == arg || strings.HasPrefix(v, arg) || strings.HasPrefix(v, arg+".") {
+			return v
+		}
+	}
+	return ""
 }
 
 // Clean removes cached archives.

@@ -35,6 +35,11 @@ func New() *Downloader {
 
 // Download writes url to path. If path exists, it resumes from its size.
 // ctx allows cancellation. cb is optional and called with (done, total, rate).
+//
+// Transient network errors (connection reset, mid-stream read failures) are
+// retried up to 3 attempts using HTTP Range so each attempt resumes from the
+// bytes already written. When the server answers 200 (ignoring Range) the
+// local file is truncated so stale tail bytes cannot corrupt the result.
 func (d *Downloader) Download(ctx context.Context, url, path string, cb ProgressCallback) error {
 	done := int64(0)
 	if fi, err := os.Stat(path); err == nil {
@@ -46,6 +51,7 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 	windowBytes := int64(0)
 	rate := int64(0)
 
+	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		if ctx.Err() != nil {
 			return ErrCancelled
@@ -62,11 +68,12 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 			if ctx.Err() != nil {
 				return ErrCancelled
 			}
-			return err
+			lastErr = err
+			continue // transient network error: retry (resumes from `done`)
 		}
 		switch {
 		case resp.StatusCode == http.StatusOK:
-			done = 0 // server ignored Range, restart file
+			done = 0 // server ignored Range, download from scratch
 		case resp.StatusCode == http.StatusPartialContent:
 		case resp.StatusCode == http.StatusRequestedRangeNotSatisfiable:
 			resp.Body.Close()
@@ -76,7 +83,8 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 			return nil // already fully downloaded
 		default:
 			resp.Body.Close()
-			return fmt.Errorf("http %s", resp.Status)
+			lastErr = fmt.Errorf("http %s", resp.Status)
+			continue
 		}
 
 		total := done
@@ -84,7 +92,11 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 			total += resp.ContentLength
 		}
 
-		f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o644)
+		flags := os.O_CREATE | os.O_WRONLY
+		if done == 0 {
+			flags |= os.O_TRUNC // server restarted: drop any stale tail
+		}
+		f, err := os.OpenFile(path, flags, 0o644)
 		if err != nil {
 			resp.Body.Close()
 			return err
@@ -98,13 +110,13 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 		}
 
 		buf := make([]byte, 256*1024)
+		var streamErr error
 		for {
 			n, rerr := resp.Body.Read(buf)
 			if n > 0 {
 				if _, werr := f.Write(buf[:n]); werr != nil {
-					f.Close()
-					resp.Body.Close()
-					return werr
+					streamErr = werr
+					break
 				}
 				done += int64(n)
 				windowBytes += int64(n)
@@ -123,17 +135,12 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 				break
 			}
 			if rerr != nil {
-				f.Close()
-				resp.Body.Close()
-				if ctx.Err() != nil {
-					return ErrCancelled
-				}
-				return rerr
+				streamErr = rerr
+				break
 			}
 			if ctx.Err() != nil {
-				f.Close()
-				resp.Body.Close()
-				return ErrCancelled
+				streamErr = ctx.Err()
+				break
 			}
 		}
 		f.Close()
@@ -142,13 +149,21 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 		if ctx.Err() != nil {
 			return ErrCancelled
 		}
+		if streamErr != nil {
+			lastErr = streamErr
+			continue // transient stream error: retry with Range resume
+		}
 		if resp.ContentLength > 0 && done != total {
-			continue // retry
+			lastErr = fmt.Errorf("incomplete download: got %d of %d bytes", done, total)
+			continue
 		}
 		_ = start
 		return nil
 	}
-	return fmt.Errorf("failed to fully download %s", url)
+	if lastErr == nil {
+		lastErr = fmt.Errorf("failed to fully download %s", url)
+	}
+	return lastErr
 }
 
 // VerifySHA256 checks the file against an expected hex sha256 digest.
@@ -217,7 +232,7 @@ func (p *ProgressBar) Callback() ProgressCallback {
 		if p.isTTY {
 			p.renderTTY(done, total)
 		} else {
-			if total > 0 && done% (total/100+1) == 0 {
+			if total > 0 && done%(total/100+1) == 0 {
 				fmt.Printf("\r%s %d%%", p.label, done*100/total)
 			}
 		}

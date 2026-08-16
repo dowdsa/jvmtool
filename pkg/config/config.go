@@ -2,10 +2,14 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -82,8 +86,23 @@ func (c *Config) LoadSettings() {
 	settings = s
 }
 
-// SaveProxy persists the proxy setting and updates the in-memory cache.
+// SaveProxy validates and persists the proxy setting, and updates the
+// in-memory cache. Supported schemes: http, https, socks5.
 func (c *Config) SaveProxy(proxy string) error {
+	proxy = strings.TrimSpace(proxy)
+	if proxy != "" {
+		u, err := url.Parse(proxy)
+		if err != nil {
+			return fmt.Errorf("无效代理地址: %w", err)
+		}
+		scheme := strings.ToLower(u.Scheme)
+		if scheme != "http" && scheme != "https" && scheme != "socks5" {
+			return fmt.Errorf("不支持的代理协议 %q（仅支持 http/https/socks5）", u.Scheme)
+		}
+		if u.Host == "" {
+			return errors.New("代理地址缺少主机名")
+		}
+	}
 	if err := c.Ensure(); err != nil {
 		return err
 	}
@@ -96,7 +115,8 @@ func (c *Config) SaveProxy(proxy string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(c.SettingsPath(), data, 0o644)
+	// 0600: config.json may embed proxy credentials
+	return os.WriteFile(c.SettingsPath(), data, 0o600)
 }
 
 // GetProxy returns the configured proxy string ("" if none).
@@ -126,7 +146,7 @@ func (c *Config) SaveSkipVersion(version string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(c.SettingsPath(), data, 0o644)
+	return os.WriteFile(c.SettingsPath(), data, 0o600)
 }
 
 // ProxyURL returns the proxy URL to use for outbound requests, or nil to use
@@ -160,19 +180,30 @@ func GetProxyString() string {
 	return settings.Proxy
 }
 
-// HTTPClient returns an *http.Client configured with the proxy (if any).
+// HTTPClient returns an *http.Client configured with the proxy (if any) and
+// sane connect/header timeouts. The overall request timeout stays 0 so large
+// downloads are not capped; hung servers are still bounded by the dial and
+// response-header timeouts.
 func HTTPClient() *http.Client {
 	proxy := ProxyURL()
 	transport := &http.Transport{
-		Proxy: http.ProxyURL(proxy),
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ResponseHeaderTimeout: 30 * time.Second,
+		TLSHandshakeTimeout:   15 * time.Second,
+		IdleConnTimeout:       90 * time.Second,
 	}
-	if proxy == nil {
-		transport.Proxy = nil
+	if proxy != nil {
+		if isSocks5Scheme(proxy) {
+			// stdlib Transport has no socks5 proxy support; dial through it.
+			transport.DialContext = socks5Dialer(proxy)
+		} else {
+			transport.Proxy = http.ProxyURL(proxy)
+		}
 	}
-	return &http.Client{
-		Transport: transport,
-		Timeout:   0,
-	}
+	return &http.Client{Transport: transport, Timeout: 0}
 }
 
 // HTTPClientWithTimeout returns a client with the given timeout.
