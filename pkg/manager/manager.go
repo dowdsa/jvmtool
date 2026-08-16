@@ -80,9 +80,13 @@ func (m *Manager) RemoveCache(art *version.Artifact) error {
 	return os.Remove(m.CacheFile(art))
 }
 
-// Install downloads, verifies and extracts a version.
+// Install downloads, verifies and extracts a version. When called from a
+// terminal (CLI), it renders a progress bar to stdout.
 func (m *Manager) Install(ctx context.Context, versionArg string) (*version.Artifact, error) {
-	return m.InstallWithProgress(ctx, versionArg, nil)
+	bar := download.NewProgressBar(string(m.Kind) + " " + versionArg)
+	art, err := m.InstallWithProgress(ctx, versionArg, ProgressFunc(bar.Callback()))
+	bar.Done()
+	return art, err
 }
 
 // ProgressFunc reports download progress (done, total, rate) in bytes.

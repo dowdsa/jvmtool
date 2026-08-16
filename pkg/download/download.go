@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/term"
+
 	"jm/pkg/config"
 )
 
@@ -266,9 +268,5 @@ func humanSize(n int64) string {
 }
 
 func isTerminal(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	return term.IsTerminal(int(f.Fd()))
 }
