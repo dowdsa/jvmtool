@@ -159,11 +159,12 @@ func (m *Manager) verify(path string, art *version.Artifact) (bool, error) {
 	return download.VerifySHA512(path, art.SHA512)
 }
 
-// downloadWithMirrors downloads from the primary URL, falling back to mirror
-// URLs if the primary fails or is cancelled. Partial files are kept so each
-// attempt resumes from where it left off.
+// downloadWithMirrors downloads preferring faster mirrors first, falling back
+// to the primary URL. Partial files are kept so each attempt resumes from
+// where it left off.
 func (m *Manager) downloadWithMirrors(ctx context.Context, art *version.Artifact, cacheFile string, progress ProgressFunc) error {
-	urls := append([]string{art.URL}, art.Mirrors...)
+	// mirrors first (typically faster), primary URL as fallback
+	urls := append(append([]string{}, art.Mirrors...), art.URL)
 	var lastErr error
 	for _, u := range urls {
 		if ctx.Err() != nil {
