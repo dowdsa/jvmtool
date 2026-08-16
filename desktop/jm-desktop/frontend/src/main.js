@@ -24,6 +24,7 @@ function render() {
                 ${Object.entries(PRODUCTS).map(([kind, item]) => `<button class="nav-item ${kind === activeKind ? 'is-active' : ''}" data-kind="${kind}"><span class="nav-index">0${kind === 'jdk' ? '1' : '2'}</span><span><strong>${item.short}</strong><small>${item.command}</small></span><span class="nav-arrow">↗</span></button>`).join('')}
             </nav>
             <div class="sidebar-foot"><span class="live-dot"></span><span>LOCAL ENVIRONMENT</span></div>
+            <button class="settings-btn" id="settings-btn" title="设置">⚙ 设置</button>
         </aside>
         <main class="workspace">
             <header class="header"><div class="breadcrumb"><span>TOOLCHAIN</span><i></i><span id="header-kind">${product.short}</span></div><button class="root-path" id="root-path" title="安装根目录">读取工作目录...</button></header>
@@ -51,6 +52,7 @@ function bindEvents() {
     document.querySelector('#refresh-btn').addEventListener('click', loadInstalled);
     document.querySelector('#search-btn').addEventListener('click', doSearch);
     document.querySelector('#search-input').addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearch(); });
+    document.querySelector('#settings-btn').addEventListener('click', openSettings);
 }
 
 async function loadRoot() {
@@ -238,6 +240,49 @@ function toast(message, isError = false) {
     document.body.appendChild(toastElement);
     requestAnimationFrame(() => toastElement.classList.add('is-visible'));
     setTimeout(() => { toastElement.classList.remove('is-visible'); setTimeout(() => toastElement.remove(), 180); }, 3400);
+}
+
+// ---------- 设置 ----------
+async function openSettings() {
+    let proxy = '';
+    try { proxy = await App.GetProxy(); } catch (e) { /* ignore */ }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'settings-overlay';
+    overlay.className = 'settings-overlay';
+    overlay.innerHTML = `
+        <div class="settings-card">
+            <div class="settings-head">
+                <h2>设置</h2>
+                <button class="settings-close" id="settings-close">×</button>
+            </div>
+            <div class="settings-body">
+                <label class="settings-label" for="proxy-input">代理地址 (Proxy)</label>
+                <input class="settings-input" id="proxy-input" type="text"
+                       placeholder="例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
+                       value="${escapeHTML(proxy)}" autocomplete="off" />
+                <p class="settings-hint">支持 http / https / socks5 协议。留空表示不使用代理（直连）。<br>设置后立即生效，无需重启。</p>
+            </div>
+            <div class="settings-foot">
+                <button class="button button-dark" id="settings-save">保存</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+    overlay.querySelector('#settings-close').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('#settings-save').addEventListener('click', async () => {
+        const value = overlay.querySelector('#proxy-input').value.trim();
+        try {
+            await App.SetProxy(value);
+            close();
+            toast(value ? '代理已保存并生效' : '代理已清除');
+        } catch (error) {
+            toast(`保存失败：${error}`, true);
+        }
+    });
+    overlay.querySelector('#proxy-input').focus();
 }
 
 bindProgressEvents();

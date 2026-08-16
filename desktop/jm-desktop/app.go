@@ -36,11 +36,22 @@ func (a *App) startup(ctx context.Context) {
 	if err := a.cfg.Ensure(); err != nil {
 		fmt.Printf("ensure dirs: %v\n", err)
 	}
+	a.cfg.LoadSettings()
 }
 
 // Root returns the JVMTOOL_HOME root directory.
 func (a *App) Root() string {
 	return a.cfg.Root
+}
+
+// GetProxy returns the configured proxy string ("" if none).
+func (a *App) GetProxy() string {
+	return a.cfg.GetProxy()
+}
+
+// SetProxy persists the proxy setting. Empty string clears it.
+func (a *App) SetProxy(proxy string) error {
+	return a.cfg.SaveProxy(proxy)
 }
 
 // VersionInfo describes one installed version.

@@ -1,10 +1,12 @@
 package config
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -16,6 +18,18 @@ const (
 type Config struct {
 	Root string
 }
+
+// Settings is persisted to <root>/config.json.
+type Settings struct {
+	Proxy string `json:"proxy,omitempty"`
+}
+
+// settingsCache holds the in-memory settings so ProxyURL can read them without
+// hitting disk on every request.
+var (
+	settingsMu sync.RWMutex
+	settings   Settings
+)
 
 func Default() *Config {
 	root := os.Getenv(envRoot)
@@ -45,20 +59,67 @@ func (c *Config) Ensure() error {
 	return nil
 }
 
+// SettingsPath returns the config file path.
+func (c *Config) SettingsPath() string {
+	return filepath.Join(c.Root, "config.json")
+}
+
+// LoadSettings reads settings from disk into the in-memory cache.
+func (c *Config) LoadSettings() {
+	settingsMu.Lock()
+	defer settingsMu.Unlock()
+	data, err := os.ReadFile(c.SettingsPath())
+	if err != nil {
+		settings = Settings{}
+		return
+	}
+	var s Settings
+	if json.Unmarshal(data, &s) != nil {
+		settings = Settings{}
+		return
+	}
+	settings = s
+}
+
+// SaveProxy persists the proxy setting and updates the in-memory cache.
+func (c *Config) SaveProxy(proxy string) error {
+	if err := c.Ensure(); err != nil {
+		return err
+	}
+	settingsMu.Lock()
+	settings.Proxy = proxy
+	s := settings
+	settingsMu.Unlock()
+
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(c.SettingsPath(), data, 0o644)
+}
+
+// GetProxy returns the configured proxy string ("" if none).
+func (c *Config) GetProxy() string {
+	settingsMu.RLock()
+	defer settingsMu.RUnlock()
+	return settings.Proxy
+}
+
 // ProxyURL returns the proxy URL to use for outbound requests, or nil to use
 // a direct connection. Resolution order:
-//  1. JVMTOOL_PROXY (tool-specific)
-//  2. HTTPS_PROXY / HTTP_PROXY / ALL_PROXY (standard env vars)
+//  1. persisted setting (config.json)
+//  2. JVMTOOL_PROXY (tool-specific env)
+//  3. HTTPS_PROXY / HTTP_PROXY / ALL_PROXY (standard env vars)
 //
-// NOTE: reads env vars directly (not http.ProxyFromEnvironment) so changes
-// are picked up immediately, which matters for long-running GUI apps.
+// NOTE: reads directly (not http.ProxyFromEnvironment) so changes are picked
+// up immediately, which matters for long-running GUI apps.
 func ProxyURL() *url.URL {
-	if p := os.Getenv(envProxy); p != "" {
+	if p := GetProxyString(); p != "" {
 		if u, err := url.Parse(p); err == nil {
 			return u
 		}
 	}
-	for _, key := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"} {
+	for _, key := range []string{envProxy, "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"} {
 		if p := os.Getenv(key); p != "" {
 			if u, err := url.Parse(p); err == nil {
 				return u
@@ -66,6 +127,13 @@ func ProxyURL() *url.URL {
 		}
 	}
 	return nil
+}
+
+// GetProxyString returns the persisted proxy string.
+func GetProxyString() string {
+	settingsMu.RLock()
+	defer settingsMu.RUnlock()
+	return settings.Proxy
 }
 
 // HTTPClient returns an *http.Client configured with the proxy (if any).
