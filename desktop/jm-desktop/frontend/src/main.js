@@ -207,7 +207,7 @@ function bindProgressActions(row) {
         const act = button.dataset.progressAct;
         if (act === 'pause') {
             paused = true;
-            App.CancelInstall();
+            App.PauseInstall();
         } else if (act === 'resume') {
             paused = false;
             const version = row.dataset.progressVersion;

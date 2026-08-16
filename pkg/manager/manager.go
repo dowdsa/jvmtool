@@ -65,6 +65,21 @@ func (m *Manager) Search(ctx context.Context, query string, limit int) ([]string
 	return m.Source.List(ctx, query, limit)
 }
 
+// Resolve resolves a (possibly partial) version to a concrete Artifact.
+func (m *Manager) Resolve(ctx context.Context, versionArg string) (*version.Artifact, error) {
+	return m.Source.Resolve(ctx, versionArg)
+}
+
+// CacheFile returns the cache path for an artifact.
+func (m *Manager) CacheFile(art *version.Artifact) string {
+	return filepath.Join(m.Cfg.CacheDir(), art.Filename)
+}
+
+// RemoveCache removes a partially-downloaded cache file.
+func (m *Manager) RemoveCache(art *version.Artifact) error {
+	return os.Remove(m.CacheFile(art))
+}
+
 // Install downloads, verifies and extracts a version.
 func (m *Manager) Install(ctx context.Context, versionArg string) (*version.Artifact, error) {
 	return m.InstallWithProgress(ctx, versionArg, nil)
@@ -90,7 +105,7 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 	}
 
 	// 1. download to cache (try primary URL first, then mirrors)
-	cacheFile := filepath.Join(m.Cfg.CacheDir(), art.Filename)
+	cacheFile := m.CacheFile(art)
 	if progress != nil {
 		progress(0, art.Size, 0)
 	}

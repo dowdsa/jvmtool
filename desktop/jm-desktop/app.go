@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -16,10 +17,11 @@ type App struct {
 	ctx context.Context
 	cfg *config.Config
 
-	mu      sync.Mutex
-	cancel  context.CancelFunc
-	busy    bool
-	busyKey string
+	mu           sync.Mutex
+	cancel       context.CancelFunc
+	busy         bool
+	busyKey      string
+	currentCache string
 }
 
 // NewApp creates a new App application struct
@@ -127,11 +129,20 @@ func (a *App) Install(kind, version string) error {
 		a.mu.Lock()
 		a.busy = false
 		a.cancel = nil
+		a.currentCache = ""
 		a.mu.Unlock()
 	}()
 
 	m := manager.NewManager(a.cfg, manager.Kind(kind))
-	_, err := m.InstallWithProgress(ctx, version, func(done, total, rate int64) {
+	art, err := m.Resolve(ctx, version)
+	if err != nil {
+		return err
+	}
+	a.mu.Lock()
+	a.currentCache = m.CacheFile(art)
+	a.mu.Unlock()
+
+	_, err = m.InstallWithProgress(ctx, version, func(done, total, rate int64) {
 		runtime.EventsEmit(a.ctx, "install:progress", InstallProgress{
 			Kind:    kind,
 			Version: version,
@@ -160,12 +171,26 @@ func (a *App) Install(kind, version string) error {
 	return nil
 }
 
-// CancelInstall cancels the current in-progress download.
-func (a *App) CancelInstall() {
+// PauseInstall pauses the current download, keeping the partial file for resume.
+func (a *App) PauseInstall() {
 	a.mu.Lock()
 	cancel := a.cancel
 	a.mu.Unlock()
 	if cancel != nil {
 		cancel()
+	}
+}
+
+// CancelInstall cancels the current download and removes the partial cache file.
+func (a *App) CancelInstall() {
+	a.mu.Lock()
+	cancel := a.cancel
+	cache := a.currentCache
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if cache != "" {
+		os.Remove(cache)
 	}
 }
