@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+
+	"jm/pkg/config"
 )
 
 const mavenMetadataURL = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml"
@@ -18,7 +20,7 @@ type MavenSource struct {
 }
 
 func NewMavenSource() *MavenSource {
-	return &MavenSource{Client: &http.Client{}}
+	return &MavenSource{Client: config.HTTPClient()}
 }
 
 type metadata struct {

@@ -1,12 +1,16 @@
 package config
 
 import (
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
-	envRoot = "JVMTOOL_HOME"
+	envRoot  = "JVMTOOL_HOME"
+	envProxy = "JVMTOOL_PROXY"
 )
 
 type Config struct {
@@ -39,4 +43,49 @@ func (c *Config) Ensure() error {
 		}
 	}
 	return nil
+}
+
+// ProxyURL returns the proxy URL to use for outbound requests, or nil to use
+// a direct connection. Resolution order:
+//  1. JVMTOOL_PROXY (tool-specific)
+//  2. HTTPS_PROXY / HTTP_PROXY / ALL_PROXY (standard env vars)
+//
+// NOTE: reads env vars directly (not http.ProxyFromEnvironment) so changes
+// are picked up immediately, which matters for long-running GUI apps.
+func ProxyURL() *url.URL {
+	if p := os.Getenv(envProxy); p != "" {
+		if u, err := url.Parse(p); err == nil {
+			return u
+		}
+	}
+	for _, key := range []string{"HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"} {
+		if p := os.Getenv(key); p != "" {
+			if u, err := url.Parse(p); err == nil {
+				return u
+			}
+		}
+	}
+	return nil
+}
+
+// HTTPClient returns an *http.Client configured with the proxy (if any).
+func HTTPClient() *http.Client {
+	proxy := ProxyURL()
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxy),
+	}
+	if proxy == nil {
+		transport.Proxy = nil
+	}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   0,
+	}
+}
+
+// HTTPClientWithTimeout returns a client with the given timeout.
+func HTTPClientWithTimeout(timeout time.Duration) *http.Client {
+	c := HTTPClient()
+	c.Timeout = timeout
+	return c
 }

@@ -115,6 +115,25 @@ export M2_HOME=$JVMTOOL_HOME/maven/current
 └── cache/             下载缓存 (.tar.gz)
 ```
 
+## 代理配置
+
+工具自动读取代理环境变量，优先级从高到低：
+
+1. `JVMTOOL_PROXY`（工具专用）
+2. `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（标准代理变量）
+
+支持 `http://`、`https://`、`socks5://` 协议，例如：
+
+```bash
+# Linux / macOS
+export JVMTOOL_PROXY=http://127.0.0.1:7890
+
+# Windows PowerShell
+$env:JVMTOOL_PROXY = "http://127.0.0.1:7890"
+```
+
+设置后无需重启工具，下一次下载即生效。
+
 ## 许可证
 
 [Apache License 2.0](LICENSE)

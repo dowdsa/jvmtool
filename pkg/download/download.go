@@ -12,6 +12,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"jm/pkg/config"
 )
 
 // ErrCancelled is returned when a download is cancelled via context.
@@ -26,7 +28,7 @@ type Downloader struct {
 }
 
 func New() *Downloader {
-	return &Downloader{Client: &http.Client{Timeout: 0}}
+	return &Downloader{Client: config.HTTPClient()}
 }
 
 // Download writes url to path. If path exists, it resumes from its size.

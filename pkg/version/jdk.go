@@ -10,6 +10,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"jm/pkg/config"
 )
 
 const adoptiumAPI = "https://api.adoptium.net/v3"
@@ -27,7 +29,7 @@ func NewJDKSource() *JDKSource {
 		Arch:      hostArch(),
 		OS:        hostOS(),
 		ImageType: "jdk",
-		Client:    &http.Client{},
+		Client:    config.HTTPClient(),
 	}
 }
 
