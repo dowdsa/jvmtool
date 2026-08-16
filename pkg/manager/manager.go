@@ -70,8 +70,8 @@ func (m *Manager) Install(ctx context.Context, versionArg string) (*version.Arti
 	return m.InstallWithProgress(ctx, versionArg, nil)
 }
 
-// ProgressFunc reports download progress (done, total) in bytes.
-type ProgressFunc func(done, total int64)
+// ProgressFunc reports download progress (done, total, rate) in bytes.
+type ProgressFunc func(done, total, rate int64)
 
 // InstallWithProgress downloads, verifies and extracts a version, reporting
 // download progress via progress if non-nil.
@@ -92,13 +92,13 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 	// 1. download to cache
 	cacheFile := filepath.Join(m.Cfg.CacheDir(), art.Filename)
 	if progress != nil {
-		progress(0, art.Size)
+		progress(0, art.Size, 0)
 	}
-	if err := m.dl.Download(art.URL, cacheFile, download.ProgressCallback(progress)); err != nil {
+	if err := m.dl.Download(ctx, art.URL, cacheFile, download.ProgressCallback(progress)); err != nil {
 		return nil, fmt.Errorf("download failed: %w", err)
 	}
 	if progress != nil {
-		progress(art.Size, art.Size)
+		progress(art.Size, art.Size, 0)
 	}
 
 	// 2. verify checksum

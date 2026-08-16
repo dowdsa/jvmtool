@@ -2,11 +2,12 @@ import './style.css';
 
 const App = window.go.main.App;
 const PRODUCTS = {
-    jdk: { label: 'Java Development Kit', short: 'JDK', command: 'java' },
+    jdk: { label: 'OpenJDK (Temurin)', short: 'JDK', command: 'java' },
     maven: { label: 'Apache Maven', short: 'Maven', command: 'mvn' },
 };
 let activeKind = 'jdk';
 let installing = false;
+let paused = false;
 let refreshId = 0;
 const app = document.querySelector('#app');
 
@@ -27,7 +28,7 @@ function render() {
         <main class="workspace">
             <header class="header"><div class="breadcrumb"><span>TOOLCHAIN</span><i></i><span id="header-kind">${product.short}</span></div><button class="root-path" id="root-path" title="安装根目录">读取工作目录...</button></header>
             <section class="hero">
-                <div><p class="eyebrow">ACTIVE TOOLCHAIN</p><h1>${product.short}<span>.</span></h1><p class="hero-copy">管理已安装版本，保持你的本地开发环境井然有序。</p></div>
+                <div><p class="eyebrow">ACTIVE TOOLCHAIN</p><h1>${product.short}<span>.</span></h1><p class="hero-copy">${activeKind === 'jdk' ? 'OpenJDK (Temurin) · 管理已安装版本，保持你的本地开发环境井然有序。' : 'Apache Maven · 管理已安装版本，保持你的本地开发环境井然有序。'}</p></div>
                 <div class="command-card"><span class="command-label">CURRENT COMMAND</span><code id="current-command">${product.command} —</code></div>
             </section>
             <section class="stats" aria-label="版本概览">
@@ -101,80 +102,132 @@ async function doSearch() {
 
 async function doUse(version) { try { await App.Use(activeKind, version); toast(`已切换至 ${PRODUCTS[activeKind].short} ${version}`); loadInstalled(); } catch (error) { toast(`切换失败：${error}`, true); } }
 async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
+
 async function doInstall(version) {
     if (installing) return;
     installing = true;
+    paused = false;
     const kind = activeKind;
-    showProgress(kind, version, 0, 0);
+    renderProgress(kind, version, 0, 0, 0, 'downloading');
     try {
         await App.Install(kind, version);
-        hideProgress();
+        const container = document.querySelector('#search-results');
+        const target = container.querySelector(`[data-progress-version="${version}"]`);
+        if (target) target.remove();
         toast(`${version} 已安装完成`);
         loadInstalled();
     } catch (error) {
-        hideProgress();
-        toast(`安装失败：${error}`, true);
+        const message = String(error);
+        if (message.includes('取消') && !paused) {
+            const container = document.querySelector('#search-results');
+            const target = container.querySelector(`[data-progress-version="${version}"]`);
+            if (target) target.remove();
+            toast('已取消下载', true);
+        } else if (paused) {
+            // 暂停：保留进度行，更新为已暂停状态
+            markProgressPaused(version);
+        } else {
+            const row = document.querySelector(`[data-progress-version="${version}"]`);
+            if (row) updateProgressRow(row, kind, version, 0, 0, 0, 'error');
+            toast(`安装失败：${error}`, true);
+        }
     } finally {
         installing = false;
     }
 }
 
-// ---------- 下载进度 ----------
+// ---------- 下载进度（内嵌） ----------
 function formatSize(bytes) {
-    if (!bytes || bytes <= 0) return '—';
+    if (!bytes || bytes <= 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB'];
     let value = bytes, index = 0;
     while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; }
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
-function showProgress(kind, version, done, total) {
-    let overlay = document.querySelector('#install-progress');
-    if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.id = 'install-progress';
-        overlay.className = 'progress-overlay';
-        overlay.innerHTML = `
-            <div class="progress-card">
-                <div class="progress-head"><span id="progress-title">正在下载</span><span id="progress-percent">0%</span></div>
-                <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-                <div class="progress-meta"><span id="progress-version">—</span><span id="progress-size">0 B / —</span></div>
-            </div>`;
-        document.body.appendChild(overlay);
-    }
-    updateProgress(kind, version, done, total);
+function formatRate(rate) {
+    if (!rate || rate <= 0) return '—';
+    return `${formatSize(rate)}/s`;
 }
 
-function updateProgress(kind, version, done, total) {
-    const title = document.querySelector('#progress-title');
-    const percent = document.querySelector('#progress-percent');
-    const fill = document.querySelector('#progress-fill');
-    const ver = document.querySelector('#progress-version');
-    const size = document.querySelector('#progress-size');
-    if (!title) return;
-    title.textContent = `正在下载 ${PRODUCTS[kind]?.short || kind}`;
-    ver.textContent = version;
-    if (total > 0) {
-        const pct = Math.min(100, Math.round((done / total) * 100));
-        percent.textContent = `${pct}%`;
-        fill.style.width = `${pct}%`;
-        size.textContent = `${formatSize(done)} / ${formatSize(total)}`;
-    } else {
-        percent.textContent = '';
-        fill.style.width = '0%';
-        size.textContent = `${formatSize(done)}`;
+function renderProgress(kind, version, done, total, rate, status) {
+    const container = document.querySelector('#search-results');
+    let row = container.querySelector(`[data-progress-version="${version}"]`);
+    if (!row) {
+        row = document.createElement('div');
+        row.className = 'progress-row';
+        row.dataset.progressVersion = version;
+        container.prepend(row);
     }
+    updateProgressRow(row, kind, version, done, total, rate, status);
 }
 
-function hideProgress() {
-    const overlay = document.querySelector('#install-progress');
-    if (overlay) overlay.remove();
+function markProgressPaused(version) {
+    const row = document.querySelector(`[data-progress-version="${version}"]`);
+    if (!row) return;
+    const done = parseInt(row.dataset.done || '0', 10);
+    const total = parseInt(row.dataset.total || '0', 10);
+    updateProgressRow(row, activeKind, version, done, total, 0, 'paused');
+}
+
+function updateProgressRow(row, kind, version, done, total, rate, status) {
+    row.dataset.done = String(done || 0);
+    row.dataset.total = String(total || 0);
+    const short = PRODUCTS[kind]?.short || kind;
+    const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    const stateText = status === 'error' ? '下载失败'
+        : status === 'cancelled' ? '已取消'
+        : status === 'paused' ? '已暂停'
+        : '下载中';
+    row.innerHTML = `
+        <div class="progress-info">
+            <div class="progress-title-row">
+                <span class="progress-title">${short} ${version}</span>
+                <span class="progress-percent">${status === 'paused' ? '' : pct + '%'}</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="progress-meta">
+                <span>${stateText}</span>
+                <span>${formatSize(done)} / ${formatSize(total)}</span>
+                <span>${status === 'paused' ? '' : formatRate(rate)}</span>
+            </div>
+        </div>
+        <div class="progress-actions">
+            ${status === 'error' || status === 'cancelled' ? '' : status === 'paused'
+                ? `<button class="progress-btn" data-progress-act="resume">继续</button>`
+                : `<button class="progress-btn" data-progress-act="pause">暂停</button>`}
+            ${status === 'error' || status === 'cancelled' ? ''
+                : `<button class="progress-btn progress-btn-cancel" data-progress-act="cancel">取消</button>`}
+        </div>`;
+    bindProgressActions(row);
+}
+
+function bindProgressActions(row) {
+    row.querySelectorAll('[data-progress-act]').forEach((button) => button.addEventListener('click', () => {
+        const act = button.dataset.progressAct;
+        if (act === 'pause') {
+            paused = true;
+            App.CancelInstall();
+        } else if (act === 'resume') {
+            paused = false;
+            const version = row.dataset.progressVersion;
+            row.remove();
+            doInstall(version);
+        } else if (act === 'cancel') {
+            App.CancelInstall();
+        }
+    }));
 }
 
 function bindProgressEvents() {
     window.runtime.EventsOn('install:progress', (payload) => {
         if (!payload) return;
-        updateProgress(payload.kind, payload.version, payload.done, payload.total);
+        if (payload.status === 'error' || payload.status === 'cancelled') {
+            const row = document.querySelector(`[data-progress-version="${payload.version}"]`);
+            if (row) updateProgressRow(row, payload.kind, payload.version, payload.done || 0, payload.total || 0, 0, payload.status);
+            return;
+        }
+        renderProgress(payload.kind, payload.version, payload.done, payload.total, payload.rate, payload.status);
     });
 }
 

@@ -1,9 +1,11 @@
 package download
 
 import (
+	"context"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,8 +14,11 @@ import (
 	"time"
 )
 
-// ProgressCallback receives downloaded/total bytes.
-type ProgressCallback func(done, total int64)
+// ErrCancelled is returned when a download is cancelled via context.
+var ErrCancelled = errors.New("download cancelled")
+
+// ProgressCallback receives downloaded/total bytes and rate (bytes/sec).
+type ProgressCallback func(done, total, rate int64)
 
 // Downloader fetches a URL to a local file with resume support.
 type Downloader struct {
@@ -25,15 +30,23 @@ func New() *Downloader {
 }
 
 // Download writes url to path. If path exists, it resumes from its size.
-// cb is optional and called with (done, total) as progress advances.
-func (d *Downloader) Download(url, path string, cb ProgressCallback) error {
+// ctx allows cancellation. cb is optional and called with (done, total, rate).
+func (d *Downloader) Download(ctx context.Context, url, path string, cb ProgressCallback) error {
 	done := int64(0)
 	if fi, err := os.Stat(path); err == nil {
 		done = fi.Size()
 	}
 
+	start := time.Now()
+	windowStart := time.Now()
+	windowBytes := int64(0)
+	rate := int64(0)
+
 	for attempt := 0; attempt < 3; attempt++ {
-		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if ctx.Err() != nil {
+			return ErrCancelled
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
 			return err
 		}
@@ -42,6 +55,9 @@ func (d *Downloader) Download(url, path string, cb ProgressCallback) error {
 		}
 		resp, err := d.Client.Do(req)
 		if err != nil {
+			if ctx.Err() != nil {
+				return ErrCancelled
+			}
 			return err
 		}
 		switch {
@@ -51,7 +67,7 @@ func (d *Downloader) Download(url, path string, cb ProgressCallback) error {
 		case resp.StatusCode == http.StatusRequestedRangeNotSatisfiable:
 			resp.Body.Close()
 			if cb != nil {
-				cb(done, done)
+				cb(done, done, 0)
 			}
 			return nil // already fully downloaded
 		default:
@@ -87,8 +103,16 @@ func (d *Downloader) Download(url, path string, cb ProgressCallback) error {
 					return werr
 				}
 				done += int64(n)
+				windowBytes += int64(n)
 				if cb != nil {
-					cb(done, total)
+					now := time.Now()
+					elapsed := now.Sub(windowStart)
+					if elapsed >= time.Second {
+						rate = int64(float64(windowBytes) / elapsed.Seconds())
+						windowBytes = 0
+						windowStart = now
+					}
+					cb(done, total, rate)
 				}
 			}
 			if rerr == io.EOF {
@@ -97,15 +121,27 @@ func (d *Downloader) Download(url, path string, cb ProgressCallback) error {
 			if rerr != nil {
 				f.Close()
 				resp.Body.Close()
+				if ctx.Err() != nil {
+					return ErrCancelled
+				}
 				return rerr
+			}
+			if ctx.Err() != nil {
+				f.Close()
+				resp.Body.Close()
+				return ErrCancelled
 			}
 		}
 		f.Close()
 		resp.Body.Close()
 
+		if ctx.Err() != nil {
+			return ErrCancelled
+		}
 		if resp.ContentLength > 0 && done != total {
 			continue // retry
 		}
+		_ = start
 		return nil
 	}
 	return fmt.Errorf("failed to fully download %s", url)
@@ -168,7 +204,7 @@ func NewProgressBar(label string) *ProgressBar {
 }
 
 func (p *ProgressBar) Callback() ProgressCallback {
-	return func(done, total int64) {
+	return func(done, total, _ int64) {
 		now := time.Now()
 		if now.Sub(p.last) < 100*time.Millisecond {
 			return

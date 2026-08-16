@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -14,6 +15,11 @@ import (
 type App struct {
 	ctx context.Context
 	cfg *config.Config
+
+	mu      sync.Mutex
+	cancel  context.CancelFunc
+	busy    bool
+	busyKey string
 }
 
 // NewApp creates a new App application struct
@@ -99,19 +105,67 @@ type InstallProgress struct {
 	Version string `json:"version"`
 	Done    int64  `json:"done"`
 	Total   int64  `json:"total"`
+	Rate    int64  `json:"rate"`
+	Status  string `json:"status"` // downloading | paused | cancelled | error
 }
 
 // Install downloads and installs a version. Progress is emitted via the
 // "install:progress" event; the promise resolves when done or fails.
 func (a *App) Install(kind, version string) error {
+	a.mu.Lock()
+	if a.busy {
+		a.mu.Unlock()
+		return fmt.Errorf("另一个下载正在进行中")
+	}
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.cancel = cancel
+	a.busy = true
+	a.busyKey = kind + ":" + version
+	a.mu.Unlock()
+
+	defer func() {
+		a.mu.Lock()
+		a.busy = false
+		a.cancel = nil
+		a.mu.Unlock()
+	}()
+
 	m := manager.NewManager(a.cfg, manager.Kind(kind))
-	_, err := m.InstallWithProgress(a.ctx, version, func(done, total int64) {
+	_, err := m.InstallWithProgress(ctx, version, func(done, total, rate int64) {
 		runtime.EventsEmit(a.ctx, "install:progress", InstallProgress{
 			Kind:    kind,
 			Version: version,
 			Done:    done,
 			Total:   total,
+			Rate:    rate,
+			Status:  "downloading",
 		})
 	})
-	return err
+	if err != nil {
+		if ctx.Err() == context.Canceled {
+			runtime.EventsEmit(a.ctx, "install:progress", InstallProgress{
+				Kind:    kind,
+				Version: version,
+				Status:  "cancelled",
+			})
+			return fmt.Errorf("已取消")
+		}
+		runtime.EventsEmit(a.ctx, "install:progress", InstallProgress{
+			Kind:    kind,
+			Version: version,
+			Status:  "error",
+		})
+		return err
+	}
+	return nil
+}
+
+// CancelInstall cancels the current in-progress download.
+func (a *App) CancelInstall() {
+	a.mu.Lock()
+	cancel := a.cancel
+	a.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 }
