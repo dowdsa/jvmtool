@@ -1,196 +1,115 @@
 import './style.css';
 
-const App = window['go']['main']['App'];
-
-const KINDS = {
-    jdk: 'JDK',
-    maven: 'Maven',
+const App = window.go.main.App;
+const PRODUCTS = {
+    jdk: { label: 'Java Development Kit', short: 'JDK', command: 'java' },
+    maven: { label: 'Apache Maven', short: 'Maven', command: 'mvn' },
 };
-
 let activeKind = 'jdk';
-let searchResults = [];
 let installing = false;
-
-// ---------- 视图渲染 ----------
+let refreshId = 0;
 const app = document.querySelector('#app');
 
+function escapeHTML(value) {
+    return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#039;', '"': '&quot;' }[character]));
+}
+
 function render() {
+    const product = PRODUCTS[activeKind];
     app.innerHTML = `
-        <div class="topbar">
-            <div class="title">jm - JDK & Maven 版本管理</div>
-            <div class="root" id="root-path">加载中...</div>
-        </div>
-        <div class="tabs">
-            <div class="tab ${activeKind === 'jdk' ? 'active' : ''}" data-kind="jdk">JDK</div>
-            <div class="tab ${activeKind === 'maven' ? 'active' : ''}" data-kind="maven">Maven</div>
-        </div>
-        <div class="content">
-            <div class="panel">
-                <div class="panel-title">
-                    <span>已安装的 ${KINDS[activeKind]}</span>
-                    <button class="btn-ghost" id="refresh-btn">刷新</button>
-                </div>
-                <div class="panel-body" id="installed-list">
-                    <div class="empty">加载中...</div>
-                </div>
-            </div>
-            <div class="panel">
-                <div class="panel-title"><span>搜索 & 安装</span></div>
-                <div class="panel-body">
-                    <div class="search-row">
-                        <input id="search-input" type="text"
-                               placeholder="输入版本关键字，如 17 / 3.9（留空列出全部）" />
-                        <button class="btn-primary" id="search-btn">搜索</button>
-                    </div>
-                    <div class="search-results" id="search-results">
-                        <div class="empty">输入关键字搜索远程可用版本</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-
+        <aside class="sidebar">
+            <div class="brand" aria-label="JM version manager"><span class="brand-mark">jm</span><span class="brand-name">version manager</span></div>
+            <nav class="product-nav" aria-label="工具类型">
+                ${Object.entries(PRODUCTS).map(([kind, item]) => `<button class="nav-item ${kind === activeKind ? 'is-active' : ''}" data-kind="${kind}"><span class="nav-index">0${kind === 'jdk' ? '1' : '2'}</span><span><strong>${item.short}</strong><small>${item.command}</small></span><span class="nav-arrow">↗</span></button>`).join('')}
+            </nav>
+            <div class="sidebar-foot"><span class="live-dot"></span><span>LOCAL ENVIRONMENT</span></div>
+        </aside>
+        <main class="workspace">
+            <header class="header"><div class="breadcrumb"><span>TOOLCHAIN</span><i></i><span id="header-kind">${product.short}</span></div><button class="root-path" id="root-path" title="安装根目录">读取工作目录...</button></header>
+            <section class="hero">
+                <div><p class="eyebrow">ACTIVE TOOLCHAIN</p><h1>${product.short}<span>.</span></h1><p class="hero-copy">管理已安装版本，保持你的本地开发环境井然有序。</p></div>
+                <div class="command-card"><span class="command-label">CURRENT COMMAND</span><code id="current-command">${product.command} —</code></div>
+            </section>
+            <section class="stats" aria-label="版本概览">
+                <div class="stat"><span>INSTALLED</span><strong id="installed-count">—</strong><small>个本地版本</small></div>
+                <div class="stat"><span>ACTIVE</span><strong id="active-version">—</strong><small>当前默认版本</small></div>
+                <div class="stat stat-note"><span>TIP</span><p>切换版本后，新终端会自动使用该版本。</p></div>
+            </section>
+            <section class="content-grid">
+                <article class="section-card installed-card"><div class="section-heading"><div><p class="section-kicker">YOUR MACHINE</p><h2>已安装版本</h2></div><button class="icon-button" id="refresh-btn" aria-label="刷新已安装版本" title="刷新">↻</button></div><div class="version-list" id="installed-list"><div class="empty-state">正在读取本地版本…</div></div></article>
+                <article class="section-card discover-card"><div class="section-heading"><div><p class="section-kicker">REMOTE CATALOG</p><h2>发现新版本</h2></div></div><div class="search-box"><label for="search-input">版本号</label><div class="search-row"><input id="search-input" type="text" autocomplete="off" placeholder="例如 17、21 或 3.9" /><button class="button button-dark" id="search-btn">搜索 <span>→</span></button></div><p>留空可浏览全部可用版本</p></div><div class="results-label"><span>AVAILABLE</span><i></i></div><div class="search-results" id="search-results"><div class="empty-state">输入版本号以搜索远程目录。</div></div></article>
+            </section>
+        </main>`;
     bindEvents();
-    loadInstalled();
     loadRoot();
+    loadInstalled();
 }
 
-// ---------- 事件绑定 ----------
 function bindEvents() {
-    document.querySelectorAll('.tab').forEach((el) => {
-        el.addEventListener('click', () => {
-            activeKind = el.dataset.kind;
-            render();
-        });
-    });
-
-    document.getElementById('refresh-btn').addEventListener('click', loadInstalled);
-
-    document.getElementById('search-btn').addEventListener('click', doSearch);
-    document.getElementById('search-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') doSearch();
-    });
+    document.querySelectorAll('[data-kind]').forEach((button) => button.addEventListener('click', () => { activeKind = button.dataset.kind; render(); }));
+    document.querySelector('#refresh-btn').addEventListener('click', loadInstalled);
+    document.querySelector('#search-btn').addEventListener('click', doSearch);
+    document.querySelector('#search-input').addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearch(); });
 }
 
-// ---------- 数据加载 ----------
 async function loadRoot() {
-    try {
-        const root = await App.Root();
-        document.getElementById('root-path').textContent = `根目录: ${root}`;
-    } catch (e) {
-        console.error(e);
-    }
+    try { const root = await App.Root(); const path = document.querySelector('#root-path'); if (path) path.textContent = root; }
+    catch (error) { console.error(error); }
 }
 
 async function loadInstalled() {
-    const container = document.getElementById('installed-list');
+    const viewId = ++refreshId;
+    const kind = activeKind;
+    const container = document.querySelector('#installed-list');
+    container.innerHTML = '<div class="empty-state"><span class="loader"></span>正在同步本地版本…</div>';
     try {
-        const list = await App.List(activeKind);
-        if (!list || list.length === 0) {
-            container.innerHTML = `<div class="empty">尚未安装任何 ${KINDS[activeKind]} 版本</div>`;
-            return;
-        }
-        container.innerHTML = list.map((v) => `
-            <div class="list-item">
-                <div>
-                    <span class="ver">${v.version}</span>
-                    ${v.current ? '<span class="badge">当前</span>' : ''}
-                </div>
-                <div class="actions">
-                    ${v.current ? '' : `<button class="btn-primary" data-act="use" data-ver="${v.version}">切换</button>`}
-                    <button class="btn-danger" data-act="uninstall" data-ver="${v.version}">卸载</button>
-                </div>
-            </div>
-        `).join('');
+        const list = await App.List(kind);
+        if (viewId !== refreshId || kind !== activeKind) return;
+        updateOverview(list || []);
+        if (!list || list.length === 0) { container.innerHTML = '<div class="empty-state empty-large"><b>尚无已安装版本</b><span>从右侧目录中搜索并安装一个版本。</span></div>'; return; }
+        container.innerHTML = list.map((item, index) => versionRow(item, index)).join('');
+        container.querySelectorAll('[data-action]').forEach((button) => button.addEventListener('click', () => { const { action, version } = button.dataset; if (action === 'use') doUse(version); if (action === 'uninstall') doUninstall(version); }));
+    } catch (error) { container.innerHTML = `<div class="empty-state error-state">无法读取本地版本：${escapeHTML(error)}</div>`; }
+}
 
-        container.querySelectorAll('button[data-act]').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-                const act = btn.dataset.act;
-                const ver = btn.dataset.ver;
-                if (act === 'use') {
-                    await doUse(ver);
-                } else if (act === 'uninstall') {
-                    await doUninstall(ver);
-                }
-            });
-        });
-    } catch (e) {
-        container.innerHTML = `<div class="empty">加载失败: ${e}</div>`;
-    }
+function versionRow(item, index) {
+    const version = escapeHTML(item.version);
+    return `<div class="version-row ${item.current ? 'is-current' : ''}"><span class="row-number">${String(index + 1).padStart(2, '0')}</span><div class="version-name"><strong>${version}</strong><small>${item.current ? 'DEFAULT VERSION' : 'INSTALLED LOCALLY'}</small></div>${item.current ? '<span class="current-tag">CURRENT</span>' : `<button class="text-button" data-action="use" data-version="${version}">设为当前</button>`}<button class="remove-button" data-action="uninstall" data-version="${version}" aria-label="卸载 ${version}" title="卸载">×</button></div>`;
+}
+
+function updateOverview(list) {
+    const current = list.find((item) => item.current);
+    const product = PRODUCTS[activeKind];
+    document.querySelector('#installed-count').textContent = list.length;
+    document.querySelector('#active-version').textContent = current ? current.version : '—';
+    document.querySelector('#current-command').textContent = `${product.command} ${current ? current.version : '—'}`;
 }
 
 async function doSearch() {
-    const input = document.getElementById('search-input');
-    const query = input.value.trim();
-    const container = document.getElementById('search-results');
-    container.innerHTML = `<div class="empty"><span class="spinner"></span>搜索中...</div>`;
+    const kind = activeKind;
+    const query = document.querySelector('#search-input').value.trim();
+    const container = document.querySelector('#search-results');
+    container.innerHTML = '<div class="empty-state"><span class="loader"></span>正在搜索远程目录…</div>';
     try {
-        searchResults = await App.Search(activeKind, query);
-        if (!searchResults || searchResults.length === 0) {
-            container.innerHTML = `<div class="empty">没有匹配的版本</div>`;
-            return;
-        }
-        container.innerHTML = searchResults.map((v) => `
-            <div class="result-item">
-                <span class="ver">${v}</span>
-                <button class="btn-primary" data-install="${v}">安装</button>
-            </div>
-        `).join('');
-
-        container.querySelectorAll('button[data-install]').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-                await doInstall(btn.dataset.install);
-            });
-        });
-    } catch (e) {
-        container.innerHTML = `<div class="empty">搜索失败: ${e}</div>`;
-    }
+        const versions = await App.Search(kind, query);
+        if (kind !== activeKind) return;
+        if (!versions || versions.length === 0) { container.innerHTML = '<div class="empty-state">没有找到匹配版本。</div>'; return; }
+        container.innerHTML = versions.map((version) => { const safeVersion = escapeHTML(version); return `<div class="result-row"><code>${safeVersion}</code><button class="install-button" data-install="${safeVersion}">安装 <span>+</span></button></div>`; }).join('');
+        container.querySelectorAll('[data-install]').forEach((button) => button.addEventListener('click', () => doInstall(button.dataset.install)));
+    } catch (error) { container.innerHTML = `<div class="empty-state error-state">搜索失败：${escapeHTML(error)}</div>`; }
 }
 
-// ---------- 操作 ----------
-async function doUse(version) {
-    try {
-        await App.Use(activeKind, version);
-        toast(`已切换到 ${KINDS[activeKind]} ${version}`);
-        loadInstalled();
-    } catch (e) {
-        toast(`切换失败: ${e}`, true);
-    }
-}
+async function doUse(version) { try { await App.Use(activeKind, version); toast(`已切换至 ${PRODUCTS[activeKind].short} ${version}`); loadInstalled(); } catch (error) { toast(`切换失败：${error}`, true); } }
+async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
+async function doInstall(version) { if (installing) return; installing = true; toast(`正在安装 ${PRODUCTS[activeKind].short} ${version}…`); try { await App.Install(activeKind, version); toast(`${version} 已安装完成`); loadInstalled(); } catch (error) { toast(`安装失败：${error}`, true); } finally { installing = false; } }
 
-async function doUninstall(version) {
-    if (!confirm(`确认卸载 ${KINDS[activeKind]} ${version}？`)) return;
-    try {
-        await App.Uninstall(activeKind, version);
-        toast(`已卸载 ${KINDS[activeKind]} ${version}`);
-        loadInstalled();
-    } catch (e) {
-        toast(`卸载失败: ${e}`, true);
-    }
-}
-
-async function doInstall(version) {
-    if (installing) return;
-    installing = true;
-    toast(`开始安装 ${KINDS[activeKind]} ${version}，请稍候...`);
-    try {
-        await App.Install(activeKind, version);
-        toast(`安装成功: ${KINDS[activeKind]} ${version}`);
-        loadInstalled();
-    } catch (e) {
-        toast(`安装失败: ${e}`, true);
-    } finally {
-        installing = false;
-    }
-}
-
-// ---------- 提示 ----------
-function toast(msg, isError = false) {
-    const el = document.createElement('div');
-    el.className = 'toast' + (isError ? ' error' : '');
-    el.textContent = msg;
-    document.body.appendChild(el);
-    setTimeout(() => el.remove(), 4000);
+function toast(message, isError = false) {
+    const toastElement = document.createElement('div');
+    toastElement.className = `toast ${isError ? 'is-error' : ''}`;
+    toastElement.textContent = message;
+    document.body.appendChild(toastElement);
+    requestAnimationFrame(() => toastElement.classList.add('is-visible'));
+    setTimeout(() => { toastElement.classList.remove('is-visible'); setTimeout(() => toastElement.remove(), 180); }, 3400);
 }
 
 render();
