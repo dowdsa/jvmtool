@@ -160,8 +160,8 @@ jobs:
         run: |
           VER="${GITHUB_REF_NAME#v}"
           awk -v ver="$VER" '
-            $0 ~ "^## \[" ver "\]" { insec=1; next }
-            insec && $0 ~ "^## \[" { insec=0 }
+            index($0, "## [" ver "]") == 1 { insec=1; next }
+            insec && index($0, "## [") == 1 { insec=0 }
             insec { print }
           ' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then echo "（CHANGELOG.md 中未找到 [${VER}] 章节）" > release-notes.md; fi
