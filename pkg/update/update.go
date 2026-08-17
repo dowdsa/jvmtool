@@ -19,8 +19,10 @@ const (
 
 // Release describes the latest release metadata.
 type Release struct {
-	TagName string `json:"tag_name"`
-	HTMLURL string `json:"html_url"`
+	TagName    string `json:"tag_name"`
+	HTMLURL    string `json:"html_url"`
+	Draft      bool   `json:"draft"`
+	Prerelease bool   `json:"prerelease"`
 }
 
 // Version strips the leading "v" from a tag (e.g. "v0.3.0" -> "0.3.0").
@@ -28,9 +30,9 @@ func (r *Release) Version() string {
 	return strings.TrimPrefix(r.TagName, "v")
 }
 
-// Latest fetches the latest release from GitHub.
+// Latest fetches the newest published, stable release from GitHub.
 func Latest(ctx context.Context) (*Release, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=100", repoOwner, repoName)
 	client := config.HTTPClientWithTimeout(15 * time.Second)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -46,11 +48,24 @@ func Latest(ctx context.Context) (*Release, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("github api returned %s", resp.Status)
 	}
-	var rel Release
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	var releases []Release
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 		return nil, err
 	}
-	return &rel, nil
+	var latest *Release
+	for i := range releases {
+		rel := &releases[i]
+		if rel.Draft || rel.Prerelease || rel.Version() == "" {
+			continue
+		}
+		if latest == nil || Compare(latest.Version(), rel.Version()) < 0 {
+			latest = rel
+		}
+	}
+	if latest == nil {
+		return nil, fmt.Errorf("no stable published release found")
+	}
+	return latest, nil
 }
 
 // Compare compares two dotted version strings (e.g. "0.3.0" vs "0.3.1").

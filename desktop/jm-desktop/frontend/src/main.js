@@ -81,6 +81,7 @@ async function checkUpdateOnStartup() {
 async function checkUpdateManual() {
     try {
         const info = await App.CheckUpdate();
+        if (info && info.error) { toast(`检查更新失败：${info.error}`, true); return; }
         if (!info || !info.version) {
             toast('当前已是最新版本');
         } else {

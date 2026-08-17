@@ -68,13 +68,14 @@ func (a *App) GetVersion() string {
 type UpdateInfo struct {
 	Version string `json:"version"`
 	URL     string `json:"url"`
+	Error   string `json:"error,omitempty"`
 }
 
 // CheckUpdate checks for a newer version. Returns empty Version if up-to-date.
 func (a *App) CheckUpdate() UpdateInfo {
 	rel, err := update.Latest(a.ctx)
 	if err != nil {
-		return UpdateInfo{}
+		return UpdateInfo{Error: err.Error()}
 	}
 	latest := rel.Version()
 	if !update.IsNewer(version.Version, latest) {
