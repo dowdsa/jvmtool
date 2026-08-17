@@ -164,7 +164,9 @@ jobs:
             insec && index($0, "## [") == 1 { insec=0 }
             insec { print }
           ' CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then echo "（CHANGELOG.md 中未找到 [${VER}] 章节）" > release-notes.md; fi
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG section not found for ${VER}" > release-notes.md
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
