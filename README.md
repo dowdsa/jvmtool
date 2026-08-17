@@ -86,6 +86,18 @@ jm maven use 3.9.11
 jm jdk list
 jm jdk current
 
+# 诊断环境、代理和当前版本
+jm doctor
+
+# 导入已有安装（不移动原目录）
+jm jdk import /path/to/jdk-21.0.1
+jm maven import /path/to/apache-maven-3.9.11
+
+# 生成 shell 补全
+jm completion bash > ~/.local/share/bash-completion/completions/jm
+jm completion zsh > ~/.zfunc/_jm
+# PowerShell: jm completion powershell | Out-String | Invoke-Expression
+
 # 卸载
 jm jdk uninstall 21.0.12+8
 

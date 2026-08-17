@@ -186,6 +186,9 @@ func GetProxyString() string {
 	return settings.Proxy
 }
 
+// SystemPACURL returns the configured Windows PAC URL, if any.
+func SystemPACURL() string { return systemPAC() }
+
 // HTTPClient returns an *http.Client configured with the proxy (if any) and
 // sane connect/header timeouts. The overall request timeout stays 0 so large
 // downloads are not capped; hung servers are still bounded by the dial and
@@ -206,7 +209,12 @@ func HTTPClient() *http.Client {
 			// stdlib Transport has no socks5 proxy support; dial through it.
 			transport.DialContext = socks5Dialer(proxy)
 		} else {
-			transport.Proxy = http.ProxyURL(proxy)
+			transport.Proxy = func(req *http.Request) (*url.URL, error) {
+				if shouldBypassProxy(req.URL) {
+					return nil, nil
+				}
+				return proxy, nil
+			}
 		}
 	}
 	return &http.Client{Transport: transport, Timeout: 0}

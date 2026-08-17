@@ -99,6 +99,7 @@ func newToolGroup(name, kind kindString) *cobra.Command {
 		useCmd(name, kind),
 		uninstallCmd(name, kind),
 		currentCmd(name, kind),
+		importCmd(name, kind),
 	)
 	return group
 }

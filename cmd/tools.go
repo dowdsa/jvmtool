@@ -142,6 +142,28 @@ func currentCmd(name, kind kindString) *cobra.Command {
 	}
 }
 
+func importCmd(name, kind kindString) *cobra.Command {
+	return &cobra.Command{
+		Use:   "import <目录> [版本]",
+		Short: "导入已有的本地安装",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m := manager.NewManager(cfg, manager.Kind(kind))
+			versionArg := ""
+			if len(args) == 2 {
+				versionArg = args[1]
+			}
+			exact, err := m.Import(args[0], versionArg)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("已导入 %s %s\n", name, exact)
+			fmt.Printf("提示: 运行 '%s %s use %s' 切换到此版本\n", os.Args[0], name, exact)
+			return nil
+		},
+	}
+}
+
 func printEnvHint(name string, c *config.Config, version string) {
 	root := c.Root
 	switch name {

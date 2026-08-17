@@ -5,12 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.4.0] - 2026-08-17
+
+### 新增
+
+- 桌面端新增下载任务队列，支持多个 JDK/Maven 任务排队并自动串行执行
+- 下载任务支持暂停、继续、取消、移除和失败重试
+- 下载进度面板同时展示排队中、下载中、已暂停和失败状态
+
 ## [0.3.3] - 2026-08-17
 
 ### 修复
 
 - Windows 桌面端自动读取当前用户的 Internet Settings 静态代理，并动态读取用户环境变量，避免必须手动填写代理
 - 桌面端下载进度移至右下角固定任务面板，不再与远程版本搜索结果混在一起；页面滚动时进度、速度和操作按钮仍保持可见
+- 新增 `jm doctor` 环境诊断命令、已有 JDK/Maven 导入命令和 Bash/Zsh/Fish/PowerShell 补全
+- 代理支持 `NO_PROXY` 绕过规则，并在 Windows 下提示检测到的 PAC 地址
 
 ## [0.3.2] - 2026-08-17
 

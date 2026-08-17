@@ -6,8 +6,9 @@ const PRODUCTS = {
     maven: { label: 'Apache Maven', short: 'Maven', command: 'mvn' },
 };
 let activeKind = 'jdk';
-let installing = false;
-let paused = false;
+let downloadQueue = [];
+let queueRunning = false;
+let currentTaskKey = '';
 let refreshId = 0;
 const app = document.querySelector('#app');
 
@@ -47,6 +48,7 @@ function render() {
         </main>
         <section class="download-dock" id="download-dock" hidden aria-live="polite" aria-label="下载任务"></section>`;
     bindEvents();
+    renderDownloadQueue();
     loadRoot();
     loadInstalled();
     loadVersion();
@@ -131,52 +133,64 @@ async function doSearch() {
         const versions = await App.Search(kind, query);
         if (kind !== activeKind) return;
         if (!versions || versions.length === 0) { container.innerHTML = '<div class="empty-state">没有找到匹配版本。</div>'; return; }
-        container.innerHTML = versions.map((version) => { const safeVersion = escapeHTML(version); return `<div class="result-row"><code>${safeVersion}</code><button class="install-button" data-install="${safeVersion}">安装 <span>+</span></button></div>`; }).join('');
-        container.querySelectorAll('[data-install]').forEach((button) => button.addEventListener('click', () => doInstall(button.dataset.install)));
+        container.innerHTML = versions.map((version) => { const safeVersion = escapeHTML(version); return `<div class="result-row"><code>${safeVersion}</code><button class="install-button" data-install="${safeVersion}">加入队列 <span>+</span></button></div>`; }).join('');
+        container.querySelectorAll('[data-install]').forEach((button) => button.addEventListener('click', () => enqueueInstall(kind, button.dataset.install)));
     } catch (error) { container.innerHTML = `<div class="empty-state error-state">搜索失败：${escapeHTML(error)}</div>`; }
 }
 
 async function doUse(version) { try { await App.Use(activeKind, version); toast(`已切换至 ${PRODUCTS[activeKind].short} ${version}`); loadInstalled(); } catch (error) { toast(`切换失败：${error}`, true); } }
 async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
 
-function removeProgressRow(version) {
-    const row = document.querySelector(`#download-dock [data-progress-version="${version}"]`);
-    const dock = document.querySelector('#download-dock');
-    if (row) row.remove();
-    if (dock && dock.children.length === 0) dock.hidden = true;
+function taskKey(kind, version) { return `${kind}:${version}`; }
+function getTask(key) { return downloadQueue.find((task) => task.key === key); }
+
+function enqueueInstall(kind, version) {
+    const key = taskKey(kind, version);
+    if (getTask(key)) { toast(`${version} 已在下载队列中`); return; }
+    downloadQueue.push({ key, kind, version, status: 'queued', done: 0, total: 0, rate: 0 });
+    renderDownloadQueue();
+    runNextDownload();
 }
 
-async function doInstall(version) {
-    if (installing) return;
-    installing = true;
-    paused = false;
-    const kind = activeKind;
-    renderProgress(kind, version, 0, 0, 0, 'downloading');
+async function runNextDownload() {
+    if (queueRunning) return;
+    const task = downloadQueue.find((item) => item.status === 'queued');
+    if (!task) { renderDownloadQueue(); return; }
+    queueRunning = true;
+    currentTaskKey = task.key;
+    task.status = 'downloading';
+    renderDownloadQueue();
     try {
-        const result = await App.Install(kind, version);
+        const result = await App.Install(task.kind, task.version);
         const status = result && result.status;
         const message = (result && result.message) || '未知错误';
         if (status === 'ok') {
-            removeProgressRow(version);
-            toast(`${version} 已安装完成`);
-            loadInstalled();
+            task.status = 'done';
+            toast(`${task.version} 已安装完成`);
+            if (task.kind === activeKind) loadInstalled();
         } else if (status === 'paused') {
-            // 暂停：保留进度行，更新为已暂停状态
-            markProgressPaused(version);
+            task.status = 'paused';
         } else if (status === 'cancelled') {
-            removeProgressRow(version);
-            toast('已取消下载', true);
+            task.status = 'cancelled';
+            toast(`${task.version} 已取消下载`, true);
         } else {
-            const row = document.querySelector(`[data-progress-version="${version}"]`);
-            if (row) updateProgressRow(row, kind, version, 0, 0, 0, 'error');
-            toast(`安装失败：${message}`, true);
+            task.status = 'error';
+            task.message = message;
+            toast(`${task.version} 安装失败：${message}`, true);
         }
     } catch (error) {
-        const row = document.querySelector(`[data-progress-version="${version}"]`);
-        if (row) updateProgressRow(row, kind, version, 0, 0, 0, 'error');
-        toast(`安装失败：${error}`, true);
+        task.status = 'error';
+        task.message = String(error);
+        toast(`${task.version} 安装失败：${error}`, true);
     } finally {
-        installing = false;
+        queueRunning = false;
+        currentTaskKey = '';
+        renderDownloadQueue();
+        if (task.status === 'done' || task.status === 'cancelled' || task.status === 'error') {
+            downloadQueue = downloadQueue.filter((item) => item !== task);
+            renderDownloadQueue();
+            runNextDownload();
+        }
     }
 }
 
@@ -194,86 +208,75 @@ function formatRate(rate) {
     return `${formatSize(rate)}/s`;
 }
 
-function renderProgress(kind, version, done, total, rate, status) {
+function renderDownloadQueue() {
     const container = document.querySelector('#download-dock');
     if (!container) return;
-    container.hidden = false;
-    let row = container.querySelector(`[data-progress-version="${version}"]`);
-    if (!row) {
-        row = document.createElement('div');
-        row.className = 'progress-row';
-        row.dataset.progressVersion = version;
-        container.prepend(row);
-    }
-    updateProgressRow(row, kind, version, done, total, rate, status);
+    const visible = downloadQueue.filter((task) => task.status !== 'done' && task.status !== 'cancelled');
+    container.hidden = visible.length === 0;
+    container.innerHTML = visible.map((task) => progressRow(task)).join('');
+    container.querySelectorAll('[data-queue-act]').forEach((button) => button.addEventListener('click', () => handleQueueAction(button.dataset.queueAct, button.dataset.queueKey)));
 }
 
-function markProgressPaused(version) {
-    const row = document.querySelector(`[data-progress-version="${version}"]`);
-    if (!row) return;
-    const done = parseInt(row.dataset.done || '0', 10);
-    const total = parseInt(row.dataset.total || '0', 10);
-    updateProgressRow(row, activeKind, version, done, total, 0, 'paused');
-}
-
-function updateProgressRow(row, kind, version, done, total, rate, status) {
-    row.dataset.done = String(done || 0);
-    row.dataset.total = String(total || 0);
+function progressRow(task) {
+    const { kind, version, done, total, rate, status, message } = task;
     const short = PRODUCTS[kind]?.short || kind;
+    const safeKey = escapeHTML(task.key);
+    const safeVersion = escapeHTML(version);
     const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-    const stateText = status === 'error' ? '下载失败'
-        : status === 'cancelled' ? '已取消'
-        : status === 'paused' ? '已暂停'
-        : '下载中';
-    row.innerHTML = `
+    const stateText = status === 'error' ? '下载失败' : status === 'paused' ? '已暂停' : status === 'queued' ? '排队中' : '下载中';
+    const action = status === 'queued'
+        ? `<button class="progress-btn progress-btn-cancel" data-queue-act="remove" data-queue-key="${safeKey}">移除</button>`
+        : status === 'paused'
+            ? `<button class="progress-btn" data-queue-act="resume" data-queue-key="${safeKey}">继续</button><button class="progress-btn progress-btn-cancel" data-queue-act="cancel" data-queue-key="${safeKey}">取消</button>`
+            : status === 'error'
+                ? `<button class="progress-btn" data-queue-act="retry" data-queue-key="${safeKey}">重试</button><button class="progress-btn progress-btn-cancel" data-queue-act="remove" data-queue-key="${safeKey}">移除</button>`
+                : `<button class="progress-btn" data-queue-act="pause" data-queue-key="${safeKey}">暂停</button><button class="progress-btn progress-btn-cancel" data-queue-act="cancel" data-queue-key="${safeKey}">取消</button>`;
+    return `
+        <div class="progress-row" data-progress-key="${safeKey}">
         <div class="progress-info">
             <div class="progress-title-row">
-                <span class="progress-title">${short} ${version}</span>
-                <span class="progress-percent">${status === 'paused' ? '' : pct + '%'}</span>
+                <span class="progress-title">${short} ${safeVersion}</span>
+                <span class="progress-percent">${status === 'queued' ? '—' : pct + '%'}</span>
             </div>
             <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
             <div class="progress-meta">
                 <span>${stateText}</span>
                 <span>${formatSize(done)} / ${formatSize(total)}</span>
-                <span>${status === 'paused' ? '' : formatRate(rate)}</span>
+                <span>${status === 'error' ? escapeHTML(message || '') : formatRate(rate)}</span>
             </div>
         </div>
-        <div class="progress-actions">
-            ${status === 'error' || status === 'cancelled' ? '' : status === 'paused'
-                ? `<button class="progress-btn" data-progress-act="resume">继续</button>`
-                : `<button class="progress-btn" data-progress-act="pause">暂停</button>`}
-            ${status === 'error' || status === 'cancelled' ? ''
-                : `<button class="progress-btn progress-btn-cancel" data-progress-act="cancel">取消</button>`}
-        </div>`;
-    bindProgressActions(row);
+        <div class="progress-actions">${action}</div></div>`;
 }
 
-function bindProgressActions(row) {
-    row.querySelectorAll('[data-progress-act]').forEach((button) => button.addEventListener('click', () => {
-        const act = button.dataset.progressAct;
-        if (act === 'pause') {
-            paused = true;
-            App.PauseInstall();
-        } else if (act === 'resume') {
-            paused = false;
-            const version = row.dataset.progressVersion;
-            row.remove();
-            doInstall(version);
-        } else if (act === 'cancel') {
-            App.CancelInstall();
-        }
-    }));
+function handleQueueAction(action, key) {
+    const task = getTask(key);
+    if (!task) return;
+    if (action === 'pause' && key === currentTaskKey) App.PauseInstall();
+    if (action === 'cancel' && key === currentTaskKey) App.CancelInstall();
+    if (action === 'remove' || action === 'cancel' && key !== currentTaskKey) {
+        downloadQueue = downloadQueue.filter((item) => item !== task);
+        renderDownloadQueue();
+    }
+    if (action === 'resume' || action === 'retry') {
+        task.status = 'queued';
+        task.message = '';
+        renderDownloadQueue();
+        runNextDownload();
+    }
 }
 
 function bindProgressEvents() {
     window.runtime.EventsOn('install:progress', (payload) => {
         if (!payload) return;
-        if (payload.status === 'error' || payload.status === 'cancelled') {
-            const row = document.querySelector(`[data-progress-version="${payload.version}"]`);
-            if (row) updateProgressRow(row, payload.kind, payload.version, payload.done || 0, payload.total || 0, 0, payload.status);
-            return;
-        }
-        renderProgress(payload.kind, payload.version, payload.done, payload.total, payload.rate, payload.status);
+        const task = getTask(taskKey(payload.kind, payload.version));
+        if (!task) return;
+        task.done = payload.done || task.done || 0;
+        task.total = payload.total || task.total || 0;
+        task.rate = payload.rate || 0;
+        if (payload.status === 'paused') task.status = 'paused';
+        if (payload.status === 'error') { task.status = 'error'; task.message = payload.message || ''; }
+        if (payload.status === 'cancelled') task.status = 'cancelled';
+        renderDownloadQueue();
     });
 }
 

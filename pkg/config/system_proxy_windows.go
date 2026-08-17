@@ -81,6 +81,19 @@ func systemProxy() string {
 	return normalizeProxyURL(server)
 }
 
+func systemPAC() string {
+	key, err := registry.OpenKey(registry.CURRENT_USER, internetSettingsKey, registry.QUERY_VALUE)
+	if err != nil {
+		return ""
+	}
+	defer key.Close()
+	pac, _, err := key.GetStringValue("AutoConfigURL")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(pac)
+}
+
 func normalizeProxyURL(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
