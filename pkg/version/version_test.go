@@ -39,9 +39,9 @@ func TestFeatureVersionOf(t *testing.T) {
 
 func TestNormalizeJDKVersion(t *testing.T) {
 	cases := map[string]string{
-		"17":            "17",
+		"17":             "17",
 		"jdk-17.0.13+11": "17.0.13+11",
-		"jdk8u502-b07":  "8u502-b07",
+		"jdk8u502-b07":   "8u502-b07",
 	}
 	for in, want := range cases {
 		if got := NormalizeJDKVersion(in); got != want {

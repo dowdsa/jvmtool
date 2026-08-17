@@ -48,9 +48,9 @@ func Default() *Config {
 	return &Config{Root: root}
 }
 
-func (c *Config) JDKDir() string      { return filepath.Join(c.Root, "jdk") }
-func (c *Config) MavenDir() string    { return filepath.Join(c.Root, "maven") }
-func (c *Config) CacheDir() string    { return filepath.Join(c.Root, "cache") }
+func (c *Config) JDKDir() string   { return filepath.Join(c.Root, "jdk") }
+func (c *Config) MavenDir() string { return filepath.Join(c.Root, "maven") }
+func (c *Config) CacheDir() string { return filepath.Join(c.Root, "cache") }
 
 func (c *Config) JDKPath(version string) string   { return filepath.Join(c.JDKDir(), version) }
 func (c *Config) MavenPath(version string) string { return filepath.Join(c.MavenDir(), version) }

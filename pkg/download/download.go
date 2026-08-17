@@ -204,11 +204,11 @@ func VerifySHA512(path, expected string) (bool, error) {
 
 // ProgressBar renders a simple line-based progress bar.
 type ProgressBar struct {
-	start  time.Time
-	last   time.Time
-	label  string
-	isTTY  bool
-	width  int
+	start time.Time
+	last  time.Time
+	label string
+	isTTY bool
+	width int
 }
 
 // NewProgressBar creates a progress bar. label shown before the bar.
