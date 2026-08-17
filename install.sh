@@ -90,6 +90,7 @@ download_binary() {
   fi
 
   chmod +x "$tmp/$TOOL_NAME"
+  verify_checksum "$tmp/$TOOL_NAME" "$platform"
   install -m 0755 "$tmp/$TOOL_NAME" "$BIN_DIR/$TOOL_NAME"
   rm -rf "$tmp"
   log "已安装到 $BIN_DIR/$TOOL_NAME"
@@ -97,23 +98,24 @@ download_binary() {
 
 # ---------- 3.5 校验下载文件 (可选) ----------
 verify_checksum() {
-  # checksum 文件同 release 一起发布，失败仅告警不阻断
+  local file="${1:?missing file}" platform_name="${2:?missing platform}"
   local checksum_url="${BASE_URL}/v${VERSION}/SHA256SUMS.txt"
   [ "$VERSION" = "latest" ] && checksum_url="${LATEST_URL}/SHA256SUMS.txt"
-  if command -v sha256sum >/dev/null 2>&1; then
-    if sums="$(curl -fsSL --max-time 20 "$checksum_url" 2>/dev/null)" && [ -n "$sums" ]; then
-      if [ -n "$(printf '%s\n' "$sums" | grep "^[0-9a-f]\{64\}.*${TOOL_NAME}_${platform}" )" ]; then
-        local expected
-        expected="$(printf '%s\n' "$sums" | grep "${TOOL_NAME}_${platform}" | head -1 | awk '{print $1}')"
-        local actual
-        actual="$(sha256sum "$BIN_DIR/$TOOL_NAME" | awk '{print $1}')"
-        if [ "$expected" != "$actual" ]; then
-          die "校验和不匹配，请重新运行安装"
-        fi
-        log "SHA256 校验通过"
-      fi
-    fi
+  command -v sha256sum >/dev/null 2>&1 || die "需要 sha256sum 才能验证下载文件"
+  local sums line expected actual
+  if command -v curl >/dev/null 2>&1; then
+    sums="$(curl -fsSL --max-time 20 "$checksum_url")" || die "无法下载 SHA256SUMS.txt"
+  elif command -v wget >/dev/null 2>&1; then
+    sums="$(wget -qO- --timeout=20 "$checksum_url")" || die "无法下载 SHA256SUMS.txt"
+  else
+    die "需要 curl 或 wget 才能下载 SHA256SUMS.txt"
   fi
+  line="$(printf '%s\n' "$sums" | grep -E "^[0-9a-fA-F]{64}[[:space:]].*${TOOL_NAME}_${platform_name}(\.exe)?$" | head -1 || true)"
+  [ -n "$line" ] || die "SHA256SUMS.txt 中没有找到 ${TOOL_NAME}_${platform_name}"
+  expected="$(printf '%s' "$line" | awk '{print tolower($1)}')"
+  actual="$(sha256sum "$file" | awk '{print tolower($1)}')"
+  [ "$expected" = "$actual" ] || die "校验和不匹配，请重新运行安装"
+  log "SHA256 校验通过"
 }
 
 # ---------- 4. 写入环境变量 ----------
@@ -165,7 +167,6 @@ main() {
 
   resolve_version
   download_binary
-  verify_checksum
   setup_env
   init_dirs
 

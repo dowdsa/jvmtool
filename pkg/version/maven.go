@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 
 	"jm/pkg/config"
@@ -65,7 +64,7 @@ func (s *MavenSource) List(ctx context.Context, query string, limit int) ([]stri
 		if IsPreRelease(v) {
 			continue
 		}
-		if query != "" && !strings.Contains(v, query) {
+		if query != "" && v != query && !strings.HasPrefix(v, query+".") && !strings.HasPrefix(v, query+"-") {
 			continue
 		}
 		out = append(out, v)
@@ -79,28 +78,21 @@ func (s *MavenSource) List(ctx context.Context, query string, limit int) ([]stri
 	return out, nil
 }
 
-var mavenVersionRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
-
 func (s *MavenSource) Resolve(ctx context.Context, version string) (*Artifact, error) {
-	m, err := s.fetchMetadata(ctx)
+	versions, err := s.List(ctx, version, 1)
 	if err != nil {
 		return nil, err
 	}
-	var exact string
-	for _, v := range m.Versioning.Versions {
-		if v == version || strings.HasPrefix(v, version+".") || strings.HasPrefix(v, version+"-") {
-			exact = v
-			break
-		}
-	}
-	if exact == "" && m.Versioning.Release != "" {
-		exact = m.Versioning.Release
-	}
-	if exact == "" {
+	if len(versions) == 0 {
 		return nil, fmt.Errorf("no Maven version matches %q", version)
 	}
+	exact := versions[0]
 	filename := fmt.Sprintf("apache-maven-%s-bin.tar.gz", exact)
 	base := "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/" + exact
+	sha512, err := s.fetchSHA512(ctx, base+"/"+filename+".sha512")
+	if err != nil {
+		return nil, fmt.Errorf("获取 Maven 校验和失败: %w", err)
+	}
 	return &Artifact{
 		Version:  exact,
 		Filename: filename,
@@ -108,26 +100,30 @@ func (s *MavenSource) Resolve(ctx context.Context, version string) (*Artifact, e
 		Mirrors: []string{
 			fmt.Sprintf("https://mirrors.huaweicloud.com/apache/maven/maven-3/%s/binaries/%s", exact, filename),
 		},
-		SHA512: s.fetchSHA512(ctx, base+"/"+filename+".sha512"),
+		SHA512: sha512,
 	}, nil
 }
 
-func (s *MavenSource) fetchSHA512(ctx context.Context, u string) string {
+func (s *MavenSource) fetchSHA512(ctx context.Context, u string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
-		return ""
+		return "", err
 	}
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		return ""
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return ""
+		return "", fmt.Errorf("checksum endpoint returned %s", resp.Status)
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return strings.TrimSpace(string(body))
+	fields := strings.Fields(string(body))
+	if len(fields) == 0 || len(fields[0]) != 128 {
+		return "", fmt.Errorf("invalid SHA512 checksum response")
+	}
+	return fields[0], nil
 }

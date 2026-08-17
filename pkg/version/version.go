@@ -45,10 +45,12 @@ func NormalizeJDKVersion(input string) string {
 }
 
 func IsPreRelease(v string) bool {
+	v = strings.ToLower(v)
 	return strings.Contains(v, "-alpha") ||
 		strings.Contains(v, "-beta") ||
 		strings.Contains(v, "-milestone") ||
-		strings.Contains(v, "-rc")
+		strings.Contains(v, "-rc") ||
+		strings.Contains(v, "-snapshot")
 }
 
 // sortVersionsDesc sorts dotted version strings (e.g. "3.9.11", "17.0.13+11")

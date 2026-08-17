@@ -2,10 +2,12 @@ package manager
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"jm/pkg/config"
 	"jm/pkg/download"
@@ -60,6 +62,31 @@ func (m *Manager) currentSymlink() string {
 	return filepath.Join(m.toolDir(), "current")
 }
 
+func (m *Manager) lock(ctx context.Context) (func(), error) {
+	if err := m.Cfg.Ensure(); err != nil {
+		return nil, err
+	}
+	path := filepath.Join(m.Cfg.Root, ".jm.lock")
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+		if err == nil {
+			_ = f.Close()
+			return func() { _ = os.Remove(path) }, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return nil, err
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if time.Now().After(deadline) {
+			return nil, errors.New("timed out waiting for jm lock")
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
 // Search returns matching available versions.
 func (m *Manager) Search(ctx context.Context, query string, limit int) ([]string, error) {
 	return m.Source.List(ctx, query, limit)
@@ -99,6 +126,11 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 	if err != nil {
 		return nil, err
 	}
+	release, err := m.lock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 
 	if fi, err := os.Stat(m.installPath(art.Version)); err == nil && fi.IsDir() {
 		return nil, fmt.Errorf("%s %s is already installed", m.Kind, art.Version)
@@ -141,6 +173,7 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 		os.RemoveAll(from)
 		return nil, fmt.Errorf("rename %s: %w", from, err)
 	}
+	renamed := false
 	switch m.Kind {
 	case KindMaven:
 		from := filepath.Join(m.toolDir(), "apache-maven-"+art.Version)
@@ -148,6 +181,7 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 			if err := os.Rename(from, m.installPath(art.Version)); err != nil {
 				return renameFailed(from, err)
 			}
+			renamed = true
 		}
 	case KindJDK:
 		for _, candidate := range []string{"jdk-" + art.Version, "jdk" + art.Version} {
@@ -156,9 +190,13 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 				if err := os.Rename(from, m.installPath(art.Version)); err != nil {
 					return renameFailed(from, err)
 				}
+				renamed = true
 				break
 			}
 		}
+	}
+	if !renamed {
+		return nil, fmt.Errorf("unexpected archive layout for %s %s", m.Kind, art.Version)
 	}
 	return art, nil
 }
@@ -166,6 +204,9 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 func (m *Manager) verify(path string, art *version.Artifact) (bool, error) {
 	if art.SHA256 != "" {
 		return download.VerifySHA256(path, art.SHA256)
+	}
+	if art.SHA512 == "" {
+		return false, fmt.Errorf("no checksum provided for %s", art.Version)
 	}
 	return download.VerifySHA512(path, art.SHA512)
 }
@@ -244,6 +285,12 @@ func (m *Manager) Current() (string, error) {
 
 // Use switches the current version by updating the symlink.
 func (m *Manager) Use(versionArg string) (string, error) {
+	release, err := m.lock(context.Background())
+	if err != nil {
+		return "", err
+	}
+	defer release()
+
 	installed, err := m.Installed()
 	if err != nil {
 		return "", err
@@ -254,21 +301,30 @@ func (m *Manager) Use(versionArg string) (string, error) {
 		return "", fmt.Errorf("%s %s is not installed; run '%s %s install %s' first",
 			m.Kind, versionArg, os.Args[0], m.Kind, versionArg)
 	}
-	if err := os.Symlink(m.installPath(exact), m.currentSymlink()); err != nil {
-		if os.IsExist(err) {
-			os.Remove(m.currentSymlink())
-			if err := os.Symlink(m.installPath(exact), m.currentSymlink()); err != nil {
-				if !env.IsWindows() {
-					return "", err
-				}
-				// Windows symlink may require admin/dev mode; the env vars
-				// below still point at the correct version, so continue.
-			}
-		} else if !env.IsWindows() {
+	previous, _ := m.Current()
+	tmpLink := m.currentSymlink() + ".tmp"
+	_ = os.Remove(tmpLink)
+	if err := os.Symlink(m.installPath(exact), tmpLink); err != nil {
+		if !env.IsWindows() {
+			return "", err
+		}
+	} else {
+		if env.IsWindows() {
+			_ = os.Remove(m.currentSymlink())
+		}
+		if err := os.Rename(tmpLink, m.currentSymlink()); err != nil {
+			_ = os.Remove(tmpLink)
 			return "", err
 		}
 	}
-
+	if env.IsWindows() {
+		if previous != "" && previous != exact {
+			_ = env.RemovePathEntry(filepath.Join(m.installPath(previous), "bin"))
+		}
+		if err := env.AddPath(filepath.Join(m.installPath(exact), "bin")); err != nil {
+			return "", err
+		}
+	}
 	// Update the environment so new terminals pick up the change.
 	m.applyEnv(exact)
 	return exact, nil
@@ -298,6 +354,12 @@ func (m *Manager) applyEnv(version string) {
 // Uninstall removes an installed version. If it is the current version, the
 // "current" symlink and the shell environment block are cleaned up too.
 func (m *Manager) Uninstall(versionArg string) (string, error) {
+	release, err := m.lock(context.Background())
+	if err != nil {
+		return "", err
+	}
+	defer release()
+
 	installed, err := m.Installed()
 	if err != nil {
 		return "", err
@@ -343,15 +405,8 @@ func (m *Manager) cleanupEnv(version string) {
 		}
 		return
 	}
-	rcFile := env.RCFile()
-	changed, err := env.RemoveBlock(rcFile)
-	if err != nil {
+	if err := env.ApplyBlock(m.Cfg.Root); err != nil {
 		fmt.Printf("提示: 清理环境变量失败: %v\n", err)
-		return
-	}
-	if changed {
-		fmt.Printf("已清理环境变量配置: %s\n", rcFile)
-		fmt.Println("提示: 重新加载 shell 后 JAVA_HOME/M2_HOME 将失效，请重新使用 'jm <tool> use <版本>' 配置。")
 	}
 }
 
@@ -380,6 +435,11 @@ func matchInstalled(installed []string, arg string) string {
 
 // Clean removes cached archives.
 func (m *Manager) Clean() error {
+	release, err := m.lock(context.Background())
+	if err != nil {
+		return err
+	}
+	defer release()
 	return os.RemoveAll(m.Cfg.CacheDir())
 }
 

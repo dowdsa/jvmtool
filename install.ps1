@@ -57,7 +57,8 @@ function Resolve-Version {
     if ($Version -eq "latest") {
         return "latest"
     }
-    return $Version.TrimStart("v")
+    $script:Version = $Version.TrimStart("v")
+    return $script:Version
 }
 
 # ---------- 3. Download and install ----------
@@ -106,18 +107,19 @@ function Verify-Checksum {
     }
     try {
         $sums = (iwr -Uri $sumsUrl -UseBasicParsing).Content
-        $line = ($sums -split "`n") | Where-Object { $_ -match "$ToolName`_$Platform" } | Select-Object -First 1
-        if ($line) {
-            $expected = ($line -split "\s+")[0].ToLower()
-            $actual   = (Get-FileHash -Path $File -Algorithm SHA256).Hash.ToLower()
-            if ($expected -ne $actual) {
-                Write-Fail "SHA256 checksum mismatch. Please re-run the installer."
-            }
-            Write-Ok "SHA256 checksum verified"
-        }
     } catch {
-        Write-Warn "Skipped SHA256 verification ($($_.Exception.Message))"
+        Write-Fail "Unable to download SHA256SUMS.txt: $($_.Exception.Message)"
     }
+    $line = ($sums -split "`n") | Where-Object { $_ -match "\b$ToolName`_$Platform(\.exe)?\b" } | Select-Object -First 1
+    if (-not $line) {
+        Write-Fail "No checksum entry found for $ToolName`_$Platform.exe"
+    }
+    $expected = ($line -split "\s+")[0].ToLower()
+    $actual   = (Get-FileHash -Path $File -Algorithm SHA256).Hash.ToLower()
+    if ($expected -ne $actual) {
+        Write-Fail "SHA256 checksum mismatch. Please re-run the installer."
+    }
+    Write-Ok "SHA256 checksum verified"
 }
 
 # ---------- 5. Configure user environment ----------
