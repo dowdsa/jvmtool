@@ -5,6 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### 修复
+
+- Windows 桌面端自动读取当前用户的 Internet Settings 静态代理，并动态读取用户环境变量，避免必须手动填写代理
+- 桌面端下载进度移至右下角固定任务面板，不再与远程版本搜索结果混在一起；页面滚动时进度、速度和操作按钮仍保持可见
+
 ## [0.3.2] - 2026-08-17
 
 ### 安全性

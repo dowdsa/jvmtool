@@ -134,6 +134,10 @@ $env:JVMTOOL_PROXY = "http://127.0.0.1:7890"
 
 设置后无需重启工具，下一次下载即生效。
 
+Windows 桌面端还会自动读取当前用户的系统代理设置（Internet Settings）。
+如果代理是在应用启动后才修改的，桌面端会在下一次网络请求创建客户端时重新读取；
+PAC 自动配置脚本仍建议转换为固定的 HTTP 代理地址，或使用 `JVMTOOL_PROXY` 明确指定。
+
 ## 许可证
 
 [Apache License 2.0](LICENSE)

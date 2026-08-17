@@ -23,9 +23,11 @@ function render() {
             <nav class="product-nav" aria-label="工具类型">
                 ${Object.entries(PRODUCTS).map(([kind, item]) => `<button class="nav-item ${kind === activeKind ? 'is-active' : ''}" data-kind="${kind}"><span class="nav-index">0${kind === 'jdk' ? '1' : '2'}</span><span><strong>${item.short}</strong><small>${item.command}</small></span><span class="nav-arrow">↗</span></button>`).join('')}
             </nav>
-            <div class="sidebar-foot"><span class="live-dot"></span><span>LOCAL ENVIRONMENT</span></div>
-            <div class="version-label" id="version-label" title="当前版本">v—</div>
-            <button class="settings-btn" id="settings-btn" title="设置">⚙ 设置</button>
+            <div class="sidebar-controls">
+                <div class="sidebar-foot"><span class="live-dot"></span><span>LOCAL ENVIRONMENT</span></div>
+                <div class="version-label" id="version-label" title="当前版本">v—</div>
+                <button class="settings-btn" id="settings-btn" title="设置">⚙ 设置</button>
+            </div>
         </aside>
         <main class="workspace">
             <header class="header"><div class="breadcrumb"><span>TOOLCHAIN</span><i></i><span id="header-kind">${product.short}</span></div><button class="root-path" id="root-path" title="安装根目录">读取工作目录...</button></header>
@@ -42,7 +44,8 @@ function render() {
                 <article class="section-card installed-card"><div class="section-heading"><div><p class="section-kicker">YOUR MACHINE</p><h2>已安装版本</h2></div><button class="icon-button" id="refresh-btn" aria-label="刷新已安装版本" title="刷新">↻</button></div><div class="version-list" id="installed-list"><div class="empty-state">正在读取本地版本…</div></div></article>
                 <article class="section-card discover-card"><div class="section-heading"><div><p class="section-kicker">REMOTE CATALOG</p><h2>发现新版本</h2></div></div><div class="search-box"><label for="search-input">版本号</label><div class="search-row"><input id="search-input" type="text" autocomplete="off" placeholder="例如 17、21 或 3.9" /><button class="button button-dark" id="search-btn">搜索 <span>→</span></button></div><p>留空可浏览全部可用版本</p></div><div class="results-label"><span>AVAILABLE</span><i></i></div><div class="search-results" id="search-results"><div class="empty-state">输入版本号以搜索远程目录。</div></div></article>
             </section>
-        </main>`;
+        </main>
+        <section class="download-dock" id="download-dock" hidden aria-live="polite" aria-label="下载任务"></section>`;
     bindEvents();
     loadRoot();
     loadInstalled();
@@ -137,8 +140,10 @@ async function doUse(version) { try { await App.Use(activeKind, version); toast(
 async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
 
 function removeProgressRow(version) {
-    const row = document.querySelector(`[data-progress-version="${version}"]`);
+    const row = document.querySelector(`#download-dock [data-progress-version="${version}"]`);
+    const dock = document.querySelector('#download-dock');
     if (row) row.remove();
+    if (dock && dock.children.length === 0) dock.hidden = true;
 }
 
 async function doInstall(version) {
@@ -190,7 +195,9 @@ function formatRate(rate) {
 }
 
 function renderProgress(kind, version, done, total, rate, status) {
-    const container = document.querySelector('#search-results');
+    const container = document.querySelector('#download-dock');
+    if (!container) return;
+    container.hidden = false;
     let row = container.querySelector(`[data-progress-version="${version}"]`);
     if (!row) {
         row = document.createElement('div');

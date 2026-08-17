@@ -154,6 +154,7 @@ func (c *Config) SaveSkipVersion(version string) error {
 //  1. persisted setting (config.json)
 //  2. JVMTOOL_PROXY (tool-specific env)
 //  3. HTTPS_PROXY / HTTP_PROXY / ALL_PROXY (standard env vars)
+//  4. Windows user environment and Internet Settings proxy
 //
 // NOTE: reads directly (not http.ProxyFromEnvironment) so changes are picked
 // up immediately, which matters for long-running GUI apps.
@@ -164,10 +165,15 @@ func ProxyURL() *url.URL {
 		}
 	}
 	for _, key := range []string{envProxy, "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"} {
-		if p := os.Getenv(key); p != "" {
+		if p := proxyEnv(key); p != "" {
 			if u, err := url.Parse(p); err == nil {
 				return u
 			}
+		}
+	}
+	if p := systemProxy(); p != "" {
+		if u, err := url.Parse(p); err == nil {
+			return u
 		}
 	}
 	return nil
