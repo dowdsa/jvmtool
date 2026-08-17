@@ -54,12 +54,11 @@ def create_release(username, token, tag, body):
     })
 
 
-def upload_asset(username, token, release_id, filepath):
+def upload_asset(username, token, release_id, filepath, filename):
     """Upload a file as a release attachment (multipart/form-data)."""
     url = "https://gitee.com/api/v5/repos/%s/jvmtool/releases/%s/attach_files" % (
         username, release_id)
     boundary = "----jm-sync-boundary-7d4a1f"
-    filename = os.path.basename(filepath)
     with open(filepath, "rb") as f:
         content = f.read()
     body = b""
@@ -172,7 +171,7 @@ def main():
             try:
                 print("  downloading %s ..." % name)
                 download(url, tmp)
-                uploaded = upload_asset(username, token, release_id, tmp)
+                uploaded = upload_asset(username, token, release_id, tmp, name)
                 print("  uploaded:", uploaded)
             except Exception as e:
                 print("  failed to upload %s: %s" % (name, e))
