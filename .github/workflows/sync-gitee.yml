@@ -31,3 +31,15 @@ jobs:
           git remote add gitee "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITEE_USERNAME}/jvmtool.git"
           # 推送所有分支和 tag（不用 --mirror 以避免推送 refs/remotes/origin/* 隐藏引用）
           git push gitee --force "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
+
+      - name: Create Gitee release for tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          if [ -z "$GITEE_USERNAME" ] || [ -z "$GITEE_TOKEN" ]; then
+            echo "Gitee credentials not configured, skipping release creation."
+            exit 0
+          fi
+          python3 scripts/gitee_release.py "$GITEE_USERNAME" "$GITEE_TOKEN" "$GITHUB_REF_NAME"
