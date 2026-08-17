@@ -12,7 +12,6 @@ jobs:
   sync:
     name: Mirror to Gitee
     runs-on: ubuntu-latest
-    if: ${{ secrets.GITEE_TOKEN != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,6 +20,13 @@ jobs:
           fetch-tags: true
 
       - name: Push to Gitee
+        env:
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         run: |
-          git remote add gitee "https://${{ secrets.GITEE_USERNAME }}:${{ secrets.GITEE_TOKEN }}@gitee.com/${{ secrets.GITEE_USERNAME }}/jvmtool.git"
+          if [ -z "$GITEE_USERNAME" ] || [ -z "$GITEE_TOKEN" ]; then
+            echo "Gitee credentials not configured, skipping."
+            exit 0
+          fi
+          git remote add gitee "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITEE_USERNAME}/jvmtool.git"
           git push gitee --mirror --force
