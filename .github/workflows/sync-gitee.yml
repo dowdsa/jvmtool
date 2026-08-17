@@ -33,7 +33,7 @@ jobs:
           git push gitee --force "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
 
       - name: Create Gitee releases and mirror assets
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         env:
           GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
