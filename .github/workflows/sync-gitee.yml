@@ -29,4 +29,5 @@ jobs:
             exit 0
           fi
           git remote add gitee "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITEE_USERNAME}/jvmtool.git"
-          git push gitee --mirror --force
+          # 推送所有分支和 tag（不用 --mirror 以避免推送 refs/remotes/origin/* 隐藏引用）
+          git push gitee --force "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
