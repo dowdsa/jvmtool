@@ -19,6 +19,9 @@ var rootCmd = &cobra.Command{
 	Use:     "jm",
 	Short:   "多版本 JDK 与 Maven 管理工具",
 	Version: version.Version,
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd: true, // 使用自定义 completionCmd
+	},
 	Long: `jm 用于下载、安装并管理多版本 JDK (Temurin) 与 Maven。
 
 默认安装根目录为 $HOME/.jvmtool，可用环境变量 JVMTOOL_HOME 覆盖。
@@ -46,6 +49,8 @@ func init() {
 	rootCmd.AddCommand(cleanCmd())
 	rootCmd.AddCommand(envCmd())
 	rootCmd.AddCommand(updateCmd())
+	rootCmd.AddCommand(doctorCmd())
+	rootCmd.AddCommand(completionCmd())
 }
 
 func updateCmd() *cobra.Command {

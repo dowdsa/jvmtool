@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.4.1] - 2026-08-17
+
+### 修复
+
+- `jm doctor` 环境诊断命令和自定义 `jm completion` 补全命令此前已定义但未注册，实际不可用，现已正确注册
+
 ## [0.4.0] - 2026-08-17
 
 ### 新增
