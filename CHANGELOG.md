@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.1] - 2026-08-18
+
+### 修复
+
+- 修复桌面端点击“取消”后更新提示反复弹出的问题
+- 取消更新后仅在客户端重新启动时再次提示
+- 跳过某个版本后，只有检测到更高版本时才会重新提示更新
+
 ## [0.5.0] - 2026-08-18
 
 ### 新增
