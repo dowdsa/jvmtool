@@ -10,6 +10,7 @@ let downloadQueue = [];
 let queueRunning = false;
 let currentTaskKey = '';
 const queueStorageKey = 'jm.downloadQueue.v1';
+let dismissedUpdateVersion = '';
 let refreshId = 0;
 const app = document.querySelector('#app');
 
@@ -74,6 +75,7 @@ async function checkUpdateOnStartup() {
     try {
         const info = await App.CheckUpdate();
         if (!info || !info.version) return;
+        if (dismissedUpdateVersion === info.version) return;
         const skipped = await App.GetSkipVersion();
         if (skipped === info.version) return; // 用户已跳过此版本
         showUpdateDialog(info);
@@ -409,9 +411,18 @@ function showUpdateDialog(info) {
     document.body.appendChild(overlay);
 
     const close = () => overlay.remove();
-    overlay.querySelector('#update-cancel').addEventListener('click', close);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('#update-cancel').addEventListener('click', () => {
+        dismissedUpdateVersion = info.version;
+        close();
+    });
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            dismissedUpdateVersion = info.version;
+            close();
+        }
+    });
     overlay.querySelector('#update-skip').addEventListener('click', async () => {
+        dismissedUpdateVersion = info.version;
         try { await App.SkipVersion(info.version); } catch (e) { /* ignore */ }
         close();
     });
