@@ -88,6 +88,12 @@ jm jdk current
 
 # 诊断环境、代理和当前版本
 jm doctor
+jm doctor --verbose
+
+# 查看和清理缓存
+jm cache list
+jm cache size
+jm cache clean --older-than 30
 
 # 导入已有安装（不移动原目录）
 jm jdk import /path/to/jdk-21.0.1

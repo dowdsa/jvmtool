@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
+	goruntime "runtime"
 	"sync"
 	"time"
 
@@ -84,6 +86,33 @@ func (a *App) CheckUpdate() UpdateInfo {
 	return UpdateInfo{Version: latest, URL: rel.HTMLURL}
 }
 
+// InstallUpdate downloads and launches the current platform's desktop
+// installer. The installer replaces the old application after it exits.
+func (a *App) InstallUpdate() error {
+	if goruntime.GOOS != "windows" {
+		return fmt.Errorf("桌面端自动更新暂不支持 %s", goruntime.GOOS)
+	}
+	rel, err := update.Latest(a.ctx)
+	if err != nil {
+		return err
+	}
+	path, err := update.DownloadInstaller(a.ctx, rel, goruntime.GOOS, goruntime.GOARCH)
+	if err != nil {
+		return err
+	}
+	if err := exec.Command(path).Start(); err != nil {
+		_ = os.Remove(path)
+		return fmt.Errorf("启动安装程序失败: %w", err)
+	}
+	// Give the installer a moment to initialize before closing the running
+	// executable, which otherwise may still be locked on Windows.
+	go func() {
+		time.Sleep(800 * time.Millisecond)
+		os.Exit(0)
+	}()
+	return nil
+}
+
 // SkipVersion marks the given version to be skipped (no more popups for it).
 func (a *App) SkipVersion(ver string) error {
 	return a.cfg.SaveSkipVersion(ver)
@@ -93,6 +122,12 @@ func (a *App) SkipVersion(ver string) error {
 func (a *App) GetSkipVersion() string {
 	return a.cfg.GetSkipVersion()
 }
+
+// GetAutoStart reports whether the desktop app starts with Windows.
+func (a *App) GetAutoStart() bool { return autoStartEnabled() }
+
+// SetAutoStart enables or disables starting the desktop app with Windows.
+func (a *App) SetAutoStart(enabled bool) error { return setAutoStart(enabled) }
 
 // VersionInfo describes one installed version.
 type VersionInfo struct {
@@ -151,6 +186,12 @@ func (a *App) Uninstall(kind, version string) error {
 	m := manager.NewManager(a.cfg, manager.Kind(kind))
 	_, err := m.Uninstall(version)
 	return err
+}
+
+// Import copies an existing JDK or Maven installation into the managed root.
+func (a *App) Import(kind, sourcePath, version string) (string, error) {
+	m := manager.NewManager(a.cfg, manager.Kind(kind))
+	return m.Import(sourcePath, version)
 }
 
 // InstallProgress is emitted to the frontend during download.

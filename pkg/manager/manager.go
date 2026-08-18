@@ -198,6 +198,9 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 	if !renamed {
 		return nil, fmt.Errorf("unexpected archive layout for %s %s", m.Kind, art.Version)
 	}
+	// The archive is no longer needed after a verified, successful install.
+	// Keep it when any earlier step fails so a retry can resume the download.
+	_ = os.Remove(cacheFile)
 	return art, nil
 }
 
@@ -379,11 +382,46 @@ func (m *Manager) Uninstall(versionArg string) (string, error) {
 	if err := os.RemoveAll(m.installPath(exact)); err != nil {
 		return "", err
 	}
+	// Remove only cache archives belonging to the uninstalled version. Other
+	// versions may still need their partial downloads for resume support.
+	_ = m.removeVersionCache(exact)
 
 	if wasCurrent {
 		m.cleanupEnv(exact)
 	}
 	return exact, nil
+}
+
+func (m *Manager) removeVersionCache(ver string) error {
+	entries, err := os.ReadDir(m.Cfg.CacheDir())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	needles := []string{strings.ToLower(ver)}
+	if strings.Contains(ver, "+") {
+		needles = append(needles,
+			strings.ToLower(strings.ReplaceAll(ver, "+", "_")),
+			strings.ToLower(strings.ReplaceAll(ver, "+", "-")),
+		)
+	}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		name := strings.ToLower(entry.Name())
+		for _, needle := range needles {
+			if needle != "" && strings.Contains(name, needle) {
+				if err := os.Remove(filepath.Join(m.Cfg.CacheDir(), entry.Name())); err != nil && !os.IsNotExist(err) {
+					return err
+				}
+				break
+			}
+		}
+	}
+	return nil
 }
 
 // cleanupEnv removes the environment configuration pointing at a deleted

@@ -5,6 +5,22 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.0] - 2026-08-18
+
+### 新增
+
+- 新增 `jm cache list`、`jm cache size` 和 `jm cache clean` 缓存管理命令，支持按天数清理旧缓存
+- `jm doctor --verbose` 增加配置文件路径和缓存占用诊断
+- 桌面端下载队列支持应用重启后恢复排队任务
+- 桌面端增加已有 JDK/Maven 导入入口
+- Windows 桌面端增加开机自动启动设置
+
+### 安全性与修复
+
+- CLI 和桌面端更新包增加 SHA256SUMS 校验，避免安装损坏或被篡改的更新文件
+- JDK/Maven 安装成功后自动清理对应下载缓存
+- 卸载 JDK/Maven 时只清理对应版本缓存，不影响其他版本的断点续传文件
+
 ## [0.4.1] - 2026-08-17
 
 ### 修复
@@ -18,6 +34,8 @@
 - 桌面端新增下载任务队列，支持多个 JDK/Maven 任务排队并自动串行执行
 - 下载任务支持暂停、继续、取消、移除和失败重试
 - 下载进度面板同时展示排队中、下载中、已暂停和失败状态
+- 桌面端支持直接下载并启动 Windows 安装程序完成客户端升级，不再仅跳转 GitHub 页面
+- CLI 的 `jm update` 支持下载对应平台的 CLI 并自动替换当前可执行文件
 
 ## [0.3.3] - 2026-08-17
 

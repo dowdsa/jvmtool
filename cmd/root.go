@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -47,6 +48,7 @@ func init() {
 	rootCmd.AddCommand(newToolGroup("jdk", KindJDK))
 	rootCmd.AddCommand(newToolGroup("maven", KindMaven))
 	rootCmd.AddCommand(cleanCmd())
+	rootCmd.AddCommand(cacheCmd())
 	rootCmd.AddCommand(envCmd())
 	rootCmd.AddCommand(updateCmd())
 	rootCmd.AddCommand(doctorCmd())
@@ -58,7 +60,7 @@ func updateCmd() *cobra.Command {
 		Use:   "update",
 		Short: "检查并更新 jm 到最新版本",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Minute)
 			defer cancel()
 
 			fmt.Printf("当前版本: %s\n", version.Version)
@@ -75,8 +77,19 @@ func updateCmd() *cobra.Command {
 			}
 
 			fmt.Printf("发现新版本 %s\n", latest)
-			fmt.Printf("下载地址: %s\n", rel.HTMLURL)
-			fmt.Println("请访问上述地址下载对应平台的安装包。")
+			executable, err := os.Executable()
+			if err != nil {
+				return fmt.Errorf("获取当前 CLI 路径失败: %w", err)
+			}
+			fmt.Println("正在下载更新...")
+			downloaded, err := update.DownloadCLI(ctx, rel, runtime.GOOS, runtime.GOARCH)
+			if err != nil {
+				return fmt.Errorf("下载更新失败: %w", err)
+			}
+			if err := update.ApplyCLI(downloaded, executable); err != nil {
+				return fmt.Errorf("安装更新失败: %w", err)
+			}
+			fmt.Println("更新成功，请重新执行 jm。")
 			return nil
 		},
 	}

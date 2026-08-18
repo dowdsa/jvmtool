@@ -13,7 +13,8 @@ import (
 )
 
 func doctorCmd() *cobra.Command {
-	return &cobra.Command{
+	var verbose bool
+	command := &cobra.Command{
 		Use: "doctor", Short: "检查 jm、JDK、Maven 和代理配置",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			issues := 0
@@ -56,6 +57,12 @@ func doctorCmd() *cobra.Command {
 				}
 				check(item.name+" current", valid, current)
 			}
+			if verbose {
+				fmt.Printf("[INFO] %-12s %s\n", "config", cfg.SettingsPath())
+				if entries, total, err := cacheEntries(); err == nil {
+					fmt.Printf("[INFO] %-12s %d 个文件，占用 %s\n", "cache", len(entries), formatBytes(total))
+				}
+			}
 			if proxy := config.ProxyURL(); proxy != nil {
 				fmt.Printf("[OK] %-12s %s\n", "proxy", proxyDisplay(proxy))
 			} else {
@@ -70,6 +77,8 @@ func doctorCmd() *cobra.Command {
 			return nil
 		},
 	}
+	command.Flags().BoolVar(&verbose, "verbose", false, "显示详细路径、配置和缓存信息")
+	return command
 }
 
 func proxyDisplay(proxy *url.URL) string {

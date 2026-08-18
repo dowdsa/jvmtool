@@ -22,3 +22,4 @@ PROJECT_MEMORY.md
 
 # Dependencies (local installs)
 node_modules/
+.gocache/

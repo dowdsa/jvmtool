@@ -9,6 +9,7 @@ let activeKind = 'jdk';
 let downloadQueue = [];
 let queueRunning = false;
 let currentTaskKey = '';
+const queueStorageKey = 'jm.downloadQueue.v1';
 let refreshId = 0;
 const app = document.querySelector('#app');
 
@@ -42,7 +43,7 @@ function render() {
                 <div class="stat stat-note"><span>TIP</span><p>切换版本后，新终端会自动使用该版本。</p></div>
             </section>
             <section class="content-grid">
-                <article class="section-card installed-card"><div class="section-heading"><div><p class="section-kicker">YOUR MACHINE</p><h2>已安装版本</h2></div><button class="icon-button" id="refresh-btn" aria-label="刷新已安装版本" title="刷新">↻</button></div><div class="version-list" id="installed-list"><div class="empty-state">正在读取本地版本…</div></div></article>
+                <article class="section-card installed-card"><div class="section-heading"><div><p class="section-kicker">YOUR MACHINE</p><h2>已安装版本</h2></div><div class="section-actions"><button class="text-button" id="import-btn">导入目录</button><button class="icon-button" id="refresh-btn" aria-label="刷新已安装版本" title="刷新">↻</button></div></div><div class="version-list" id="installed-list"><div class="empty-state">正在读取本地版本…</div></div></article>
                 <article class="section-card discover-card"><div class="section-heading"><div><p class="section-kicker">REMOTE CATALOG</p><h2>发现新版本</h2></div></div><div class="search-box"><label for="search-input">版本号</label><div class="search-row"><input id="search-input" type="text" autocomplete="off" placeholder="例如 17、21 或 3.9" /><button class="button button-dark" id="search-btn">搜索 <span>→</span></button></div><p>留空可浏览全部可用版本</p></div><div class="results-label"><span>AVAILABLE</span><i></i></div><div class="search-results" id="search-results"><div class="empty-state">输入版本号以搜索远程目录。</div></div></article>
             </section>
         </main>
@@ -58,6 +59,7 @@ function render() {
 function bindEvents() {
     document.querySelectorAll('[data-kind]').forEach((button) => button.addEventListener('click', () => { activeKind = button.dataset.kind; render(); }));
     document.querySelector('#refresh-btn').addEventListener('click', loadInstalled);
+    document.querySelector('#import-btn').addEventListener('click', importInstallation);
     document.querySelector('#search-btn').addEventListener('click', doSearch);
     document.querySelector('#search-input').addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearch(); });
     document.querySelector('#settings-btn').addEventListener('click', openSettings);
@@ -141,6 +143,21 @@ async function doSearch() {
 
 async function doUse(version) { try { await App.Use(activeKind, version); toast(`已切换至 ${PRODUCTS[activeKind].short} ${version}`); loadInstalled(); } catch (error) { toast(`切换失败：${error}`, true); } }
 async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
+async function importInstallation() {
+    try {
+        const source = await window.runtime.OpenFileDialog({
+            Title: `选择要导入的 ${PRODUCTS[activeKind].short} 目录`,
+            CanChooseDirectories: true,
+            CanChooseFiles: false,
+        });
+        if (!source) return;
+        const version = await App.Import(activeKind, source, '');
+        toast(`已导入 ${PRODUCTS[activeKind].short} ${version}`);
+        loadInstalled();
+    } catch (error) {
+        toast(`导入失败：${error}`, true);
+    }
+}
 
 function taskKey(kind, version) { return `${kind}:${version}`; }
 function getTask(key) { return downloadQueue.find((task) => task.key === key); }
@@ -151,6 +168,25 @@ function enqueueInstall(kind, version) {
     downloadQueue.push({ key, kind, version, status: 'queued', done: 0, total: 0, rate: 0 });
     renderDownloadQueue();
     runNextDownload();
+}
+
+function loadDownloadQueue() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(queueStorageKey) || '[]');
+        if (!Array.isArray(saved)) return;
+        downloadQueue = saved.filter((task) => task && task.key && task.kind && task.version)
+            .map((task) => ({ ...task, status: task.status === 'downloading' ? 'queued' : task.status }));
+    } catch (error) {
+        console.warn('无法恢复下载队列', error);
+    }
+}
+
+function saveDownloadQueue() {
+    try {
+        localStorage.setItem(queueStorageKey, JSON.stringify(downloadQueue));
+    } catch (error) {
+        console.warn('无法保存下载队列', error);
+    }
 }
 
 async function runNextDownload() {
@@ -212,6 +248,7 @@ function formatRate(rate) {
 function renderDownloadQueue() {
     const container = document.querySelector('#download-dock');
     if (!container) return;
+    saveDownloadQueue();
     const visible = downloadQueue.filter((task) => task.status !== 'done' && task.status !== 'cancelled');
     container.hidden = visible.length === 0;
     container.innerHTML = visible.map((task) => progressRow(task)).join('');
@@ -296,6 +333,8 @@ async function openSettings() {
     try { proxy = await App.GetProxy(); } catch (e) { /* ignore */ }
     let ver = '';
     try { ver = await App.GetVersion(); } catch (e) { /* ignore */ }
+    let autoStart = false;
+    try { autoStart = await App.GetAutoStart(); } catch (e) { /* ignore */ }
 
     const overlay = document.createElement('div');
     overlay.id = 'settings-overlay';
@@ -312,6 +351,7 @@ async function openSettings() {
                        placeholder="例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
                        value="${escapeHTML(proxy)}" autocomplete="off" />
                 <p class="settings-hint">支持 http / https / socks5 协议。留空表示不使用代理（直连）。<br>设置后立即生效，无需重启。</p>
+                <label class="settings-check"><input id="autostart-input" type="checkbox" ${autoStart ? 'checked' : ''} /> <span>开机自动启动桌面端</span></label>
                 <div class="settings-about">
                     <span class="settings-about-ver">当前版本 v${escapeHTML(ver)}</span>
                     <button class="button button-dark" id="check-update-btn">检查更新</button>
@@ -330,6 +370,7 @@ async function openSettings() {
         const value = overlay.querySelector('#proxy-input').value.trim();
         try {
             await App.SetProxy(value);
+            await App.SetAutoStart(overlay.querySelector('#autostart-input').checked);
             close();
             toast(value ? '代理已保存并生效' : '代理已清除');
         } catch (error) {
@@ -375,10 +416,20 @@ function showUpdateDialog(info) {
         close();
     });
     overlay.querySelector('#update-install').addEventListener('click', () => {
-        if (info.url) window.runtime.BrowserOpenURL(info.url);
-        close();
+        const button = overlay.querySelector('#update-install');
+        button.disabled = true;
+        button.textContent = '正在下载…';
+        App.InstallUpdate().then(() => {
+            button.textContent = '正在启动安装程序…';
+        }).catch((error) => {
+            button.disabled = false;
+            button.textContent = '安装更新';
+            toast(`更新失败：${error}`, true);
+        });
     });
 }
 
 bindProgressEvents();
+loadDownloadQueue();
 render();
+setTimeout(runNextDownload, 250);

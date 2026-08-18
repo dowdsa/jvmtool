@@ -20,3 +20,28 @@ func TestIsNewer(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallerURL(t *testing.T) {
+	rel := &Release{TagName: "v0.4.0", Assets: []Asset{
+		{Name: "jm-desktop_windows_amd64.exe", DownloadURL: "https://example.com/jm.exe"},
+	}}
+	got, err := rel.InstallerURL("windows", "amd64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "https://example.com/jm.exe" {
+		t.Fatalf("InstallerURL() = %q", got)
+	}
+	if _, err := rel.InstallerURL("windows", "arm64"); err == nil {
+		t.Fatal("InstallerURL accepted an unavailable architecture")
+	}
+}
+
+func TestCLIAssetName(t *testing.T) {
+	if got := CLIAssetName("linux", "amd64"); got != "jm_linux_amd64" {
+		t.Fatalf("CLIAssetName(linux/amd64) = %q", got)
+	}
+	if got := CLIAssetName("windows", "amd64"); got != "jm_windows_amd64.exe" {
+		t.Fatalf("CLIAssetName(windows/amd64) = %q", got)
+	}
+}
