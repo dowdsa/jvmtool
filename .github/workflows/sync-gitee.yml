@@ -70,4 +70,4 @@ jobs:
           # 只同步当前 GitHub Release，避免全量删除和重建历史发行版
           python3 scripts/gitee_release.py "$GITEE_USERNAME" "$GITEE_TOKEN" \
             --github-owner dowdsa --github-token "${{ github.token }}" \
-            "${{ steps.release.outputs.tag }}"
+            --tag "${{ steps.release.outputs.tag }}"

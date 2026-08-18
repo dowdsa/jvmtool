@@ -155,12 +155,16 @@ def main():
     parser.add_argument("gitee_token")
     parser.add_argument("--github-owner", default="dowdsa")
     parser.add_argument("--github-token", default="")
+    parser.add_argument("--tag", dest="tag_options", action="append", default=[],
+                        help="只同步指定 Tag，可重复传入")
     parser.add_argument("tags", nargs="*")
     args = parser.parse_args()
 
     username = args.gitee_username
     token = args.gitee_token
-    tags = args.tags if args.tags else list_tags()
+    tags = args.tag_options + args.tags
+    if not tags:
+        tags = list_tags()
 
     # 降序：最新版本先创建，使其在 Gitee 网页列表顶部
     tags.sort(key=version_key, reverse=True)
