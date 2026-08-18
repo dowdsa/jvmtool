@@ -16,8 +16,27 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError, URLError
+
+
+def urlopen_retry(request, timeout, attempts=3):
+    """Open a request with bounded retries for transient network/server errors."""
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            return urllib.request.urlopen(request, timeout=timeout)
+        except HTTPError as error:
+            last_error = error
+            if error.code < 500:
+                raise
+        except (URLError, TimeoutError) as error:
+            last_error = error
+        if attempt + 1 < attempts:
+            time.sleep(2 ** attempt)
+    raise last_error
 
 
 def api_request(url, token=None, method="GET", data=None):
@@ -27,7 +46,7 @@ def api_request(url, token=None, method="GET", data=None):
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
     else:
         req = urllib.request.Request(url, method=method, headers=headers)
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urlopen_retry(req, timeout=60) as resp:
         raw = resp.read().decode()
         return json.loads(raw) if raw else {}
 
@@ -74,7 +93,7 @@ def upload_asset(username, token, release_id, filepath, filename):
     req = urllib.request.Request(url, data=body, method="POST")
     req.add_header("Content-Type", "multipart/form-data; boundary=%s" % boundary)
     req.add_header("User-Agent", "jm-gitee-sync")
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urlopen_retry(req, timeout=300) as resp:
         result = json.loads(resp.read().decode())
         return result.get("name", "?")
 
@@ -86,14 +105,14 @@ def list_github_assets(github_owner, github_token, tag):
     if github_token:
         headers["Authorization"] = "Bearer " + github_token
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urlopen_retry(req, timeout=60) as resp:
         rel = json.loads(resp.read().decode())
     return [(a["name"], a["browser_download_url"]) for a in rel.get("assets", [])]
 
 
 def download(url, dest):
     req = urllib.request.Request(url, headers={"User-Agent": "jm-gitee-sync"})
-    with urllib.request.urlopen(req, timeout=300) as resp, open(dest, "wb") as f:
+    with urlopen_retry(req, timeout=600) as resp, open(dest, "wb") as f:
         while True:
             chunk = resp.read(1024 * 256)
             if not chunk:
@@ -146,12 +165,14 @@ def main():
     # 降序：最新版本先创建，使其在 Gitee 网页列表顶部
     tags.sort(key=version_key, reverse=True)
 
-    # 删除全部旧 release
-    for rel in list_releases(username, token):
-        rel_id = rel.get("id")
+    releases = list_releases(username, token)
+    target_tags = set(tags)
+    # 显式传入 Tag 时，只替换同名 Gitee Release，避免正常发布误删历史版本。
+    for rel in releases:
         tag_name = rel.get("tag_name", "?")
-        delete_release(username, token, rel_id)
-        print("deleted release:", tag_name)
+        if tag_name in target_tags:
+            delete_release(username, token, rel.get("id"))
+            print("deleted release:", tag_name)
 
     # 重新创建并上传资产
     for tag in tags:

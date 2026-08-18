@@ -1,23 +1,48 @@
 name: Sync to Gitee
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - "v*"
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "要同步的 GitHub Release Tag，例如 v0.5.0"
+        required: true
+        type: string
 
 jobs:
   sync:
     name: Mirror to Gitee
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        env:
+          EVENT_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
+        run: |
+          TAG="$EVENT_TAG"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            TAG="$(git tag --points-at HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+          fi
+          if [[ -z "$TAG" ]]; then
+            echo "无法确定要同步的 Release Tag" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "同步 Release: $TAG"
 
       - name: Push to Gitee
         env:
@@ -29,11 +54,11 @@ jobs:
             exit 0
           fi
           git remote add gitee "https://${GITEE_USERNAME}:${GITEE_TOKEN}@gitee.com/${GITEE_USERNAME}/jvmtool.git"
-          # 推送所有分支和 tag（不用 --mirror 以避免推送 refs/remotes/origin/* 隐藏引用）
-          git push gitee --force "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
+          TAG="${{ steps.release.outputs.tag }}"
+          git push gitee --force "refs/tags/$TAG:refs/tags/$TAG"
 
       - name: Create Gitee releases and mirror assets
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        if: success()
         env:
           GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -42,6 +67,7 @@ jobs:
             echo "Gitee credentials not configured, skipping release creation."
             exit 0
           fi
-          # 全量重建 Gitee 发行版(保证顺序)并从 GitHub 下载资产上传
+          # 只同步当前 GitHub Release，避免全量删除和重建历史发行版
           python3 scripts/gitee_release.py "$GITEE_USERNAME" "$GITEE_TOKEN" \
-            --github-owner dowdsa --github-token "${{ github.token }}"
+            --github-owner dowdsa --github-token "${{ github.token }}" \
+            "${{ steps.release.outputs.tag }}"
