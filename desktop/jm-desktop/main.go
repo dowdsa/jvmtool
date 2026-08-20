@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"os"
 	"path/filepath"
@@ -9,10 +10,14 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
+
+// app is the global application instance, accessible from tray.go.
+var app *App
 
 // showError 记录错误日志并（在 Windows 上）弹窗提示，
 // 避免 GUI 程序无控制台导致错误不可见。
@@ -28,7 +33,7 @@ func showError(title, msg string) {
 }
 
 func main() {
-	app := NewApp()
+	app = NewApp()
 
 	err := wails.Run(&options.App{
 		Title:  "jm - JDK & Maven 版本管理",
@@ -38,7 +43,18 @@ func main() {
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+			setupTray()
+		},
+		OnBeforeClose: func(ctx *wailsruntime.Context) bool {
+			// 拦截关闭：隐藏窗口到托盘而非退出
+			wailsruntime.WindowHide(app.ctx)
+			return true
+		},
+		OnShutdown: func(ctx *wailsruntime.Context) {
+			cleanupTray()
+		},
 		Bind: []interface{}{
 			app,
 		},
