@@ -1,0 +1,19 @@
+{
+  "network": {
+    "allowNetwork": true,
+    "allowedDomains": [
+      "*"
+    ]
+  },
+  "filesystem": {
+    "allowRead": [
+      "**"
+    ],
+    "allowWrite": [
+      "**"
+    ],
+    "denyRead": [],
+    "denyWrite": []
+  },
+  "enabled": false
+}

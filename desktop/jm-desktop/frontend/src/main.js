@@ -146,13 +146,16 @@ async function doSearch() {
 async function doUse(version) { try { await App.Use(activeKind, version); toast(`已切换至 ${PRODUCTS[activeKind].short} ${version}`); loadInstalled(); } catch (error) { toast(`切换失败：${error}`, true); } }
 async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[activeKind].short} ${version} 吗？`)) return; try { await App.Uninstall(activeKind, version); toast(`已卸载 ${version}`); loadInstalled(); } catch (error) { toast(`卸载失败：${error}`, true); } }
 async function importInstallation() {
+    let source;
     try {
-        const source = await window.runtime.OpenFileDialog({
+        source = await window.runtime.OpenDirectoryDialog({
             Title: `选择要导入的 ${PRODUCTS[activeKind].short} 目录`,
-            CanChooseDirectories: true,
-            CanChooseFiles: false,
         });
-        if (!source) return;
+    } catch {
+        return; // 用户取消选择
+    }
+    if (!source) return;
+    try {
         const version = await App.Import(activeKind, source, '');
         toast(`已导入 ${PRODUCTS[activeKind].short} ${version}`);
         loadInstalled();
