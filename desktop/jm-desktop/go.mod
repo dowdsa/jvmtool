@@ -3,7 +3,7 @@ module jm-desktop
 go 1.25.13
 
 require (
-	github.com/nicehash/systray v1.3.0
+	github.com/getlantern/systray v1.2.1
 	github.com/wailsapp/wails/v2  v2.14.0
 )
 

@@ -6,7 +6,7 @@ import (
 	"image/color"
 	"image/png"
 
-	"github.com/nicehash/systray"
+	"github.com/getlantern/systray"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
