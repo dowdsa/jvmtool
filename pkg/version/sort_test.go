@@ -23,10 +23,11 @@ func TestCompareVersions(t *testing.T) {
 		{"3.9", "3.9.1", -1},
 		{"17.0.13+11", "17.0.13+9", 0}, // build suffix ignored
 		{"4.0.0-rc1", "3.9.11", 1},
+		{"v0.3.0", "v0.4.0", -1}, // v prefix stripped
 	}
 	for _, c := range cases {
-		if got := compareVersions(c.a, c.b); got != c.want {
-			t.Errorf("compareVersions(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
+		if got := CompareVersions(c.a, c.b); got != c.want {
+			t.Errorf("CompareVersions(%q, %q) = %d, want %d", c.a, c.b, got, c.want)
 		}
 	}
 }

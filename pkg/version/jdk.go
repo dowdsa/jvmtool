@@ -16,6 +16,20 @@ import (
 
 const adoptiumAPI = "https://api.adoptium.net/v3"
 
+// SupportedDistros lists the JDK distributions that can be managed.
+var SupportedDistros = []string{"temurin", "zulu"}
+
+// NewJDKSourceForDistro returns a JDK Source for the given distribution.
+// Supported: "temurin" (default), "zulu".
+func NewJDKSourceForDistro(distro string) Source {
+	switch strings.ToLower(distro) {
+	case "zulu":
+		return NewZuluSource()
+	default:
+		return NewJDKSource()
+	}
+}
+
 // JDKSource implements Source backed by the Adoptium (Temurin) API.
 type JDKSource struct {
 	Arch      string
@@ -258,7 +272,7 @@ func featureVersionOf(release string) int {
 
 // resolveExactVersion resolves a partial query to the newest matching release name.
 func (s *JDKSource) resolveExactVersion(ctx context.Context, query string) (string, error) {
-	releases, err := s.List(ctx, query, 0)
+	releases, err := s.List(ctx, query, 1)
 	if err != nil {
 		return "", err
 	}

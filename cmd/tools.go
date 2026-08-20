@@ -9,9 +9,10 @@ import (
 
 	"jm/pkg/config"
 	"jm/pkg/manager"
+	"jm/pkg/project"
 )
 
-func searchCmd(name, kind kindString) *cobra.Command {
+func searchCmd(name, kind kindString, group *cobra.Command) *cobra.Command {
 	return &cobra.Command{
 		Use:   "search [版本关键字]",
 		Short: "搜索可下载的可用版本",
@@ -21,7 +22,7 @@ func searchCmd(name, kind kindString) *cobra.Command {
 			if len(args) > 0 {
 				query = args[0]
 			}
-			m := manager.NewManager(cfg, manager.Kind(kind))
+			m := newManager(kind, group)
 			versions, err := m.Search(cmd.Context(), query, 0)
 			if err != nil {
 				return err
@@ -30,7 +31,12 @@ func searchCmd(name, kind kindString) *cobra.Command {
 				fmt.Printf("没有找到匹配的 %s 版本\n", name)
 				return nil
 			}
-			fmt.Printf("可用的 %s 版本 (%d 个):\n", name, len(versions))
+			distro := getDistro(group)
+			if distro != "" && distro != "temurin" {
+				fmt.Printf("可用的 %s (%s) 版本 (%d 个):\n", name, distro, len(versions))
+			} else {
+				fmt.Printf("可用的 %s 版本 (%d 个):\n", name, len(versions))
+			}
 			for _, v := range versions {
 				fmt.Printf("  %s\n", v)
 			}
@@ -39,13 +45,13 @@ func searchCmd(name, kind kindString) *cobra.Command {
 	}
 }
 
-func installCmd(name, kind kindString) *cobra.Command {
+func installCmd(name, kind kindString, group *cobra.Command) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install <版本>",
 		Short: "下载并安装指定版本",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			m := manager.NewManager(cfg, manager.Kind(kind))
+			m := newManager(kind, group)
 			art, err := m.Install(cmd.Context(), args[0])
 			if err != nil {
 				return err
@@ -91,12 +97,31 @@ func listCmd(name, kind kindString) *cobra.Command {
 
 func useCmd(name, kind kindString) *cobra.Command {
 	return &cobra.Command{
-		Use:   "use <版本>",
-		Short: "切换当前使用版本",
-		Args:  cobra.ExactArgs(1),
+		Use:   "use [版本]",
+		Short: "切换当前使用版本 (无参数时从 .jvmtoolrc 读取)",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			versionArg := ""
+			if len(args) == 1 {
+				versionArg = args[0]
+			} else {
+				// Read from .jvmtoolrc.
+				rc := project.FindFromCwd()
+				if rc == nil {
+					return fmt.Errorf("未指定版本且当前目录及上级目录中未找到 .jvmtoolrc")
+				}
+				switch name {
+				case "jdk":
+					versionArg = rc.JDK
+				case "maven":
+					versionArg = rc.Maven
+				}
+				if versionArg == "" {
+					return fmt.Errorf(".jvmtoolrc 中未配置 %s 版本", name)
+				}
+			}
 			m := manager.NewManager(cfg, manager.Kind(kind))
-			exact, err := m.Use(args[0])
+			exact, err := m.Use(versionArg)
 			if err != nil {
 				return err
 			}
@@ -114,11 +139,14 @@ func uninstallCmd(name, kind kindString) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m := manager.NewManager(cfg, manager.Kind(kind))
-			exact, err := m.Uninstall(args[0])
+			exact, fallback, err := m.Uninstall(args[0])
 			if err != nil {
 				return err
 			}
 			fmt.Printf("已卸载 %s %s\n", name, exact)
+			if fallback != "" {
+				fmt.Printf("已自动切换到 %s %s\n", name, fallback)
+			}
 			return nil
 		},
 	}

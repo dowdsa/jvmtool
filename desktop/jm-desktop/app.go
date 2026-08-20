@@ -184,7 +184,7 @@ func (a *App) Use(kind, version string) error {
 // Uninstall removes a version.
 func (a *App) Uninstall(kind, version string) error {
 	m := manager.NewManager(a.cfg, manager.Kind(kind))
-	_, err := m.Uninstall(version)
+	_, _, err := m.Uninstall(version)
 	return err
 }
 

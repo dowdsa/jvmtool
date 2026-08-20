@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"jm/pkg/config"
+	"jm/pkg/version"
 )
 
 const (
@@ -302,7 +303,7 @@ func Latest(ctx context.Context) (*Release, error) {
 		if rel.Draft || rel.Prerelease || rel.Version() == "" {
 			continue
 		}
-		if latest == nil || Compare(latest.Version(), rel.Version()) < 0 {
+		if latest == nil || version.CompareVersions(latest.Version(), rel.Version()) < 0 {
 			latest = rel
 		}
 	}
@@ -312,53 +313,7 @@ func Latest(ctx context.Context) (*Release, error) {
 	return latest, nil
 }
 
-// Compare compares two dotted version strings (e.g. "0.3.0" vs "0.3.1").
-// Returns -1 if a < b, 0 if equal, 1 if a > b.
-func Compare(a, b string) int {
-	av := parseParts(a)
-	bv := parseParts(b)
-	n := len(av)
-	if len(bv) > n {
-		n = len(bv)
-	}
-	for i := 0; i < n; i++ {
-		var x, y int
-		if i < len(av) {
-			x = av[i]
-		}
-		if i < len(bv) {
-			y = bv[i]
-		}
-		if x < y {
-			return -1
-		}
-		if x > y {
-			return 1
-		}
-	}
-	return 0
-}
-
-func parseParts(v string) []int {
-	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
-	parts := strings.Split(v, ".")
-	out := make([]int, 0, len(parts))
-	for _, p := range parts {
-		// strip non-numeric suffix like "-rc1", "+build"
-		num := p
-		if i := strings.IndexAny(p, "-+"); i >= 0 {
-			num = p[:i]
-		}
-		n, err := strconv.Atoi(num)
-		if err != nil {
-			n = 0
-		}
-		out = append(out, n)
-	}
-	return out
-}
-
 // IsNewer reports whether latest is a newer version than current.
 func IsNewer(current, latest string) bool {
-	return Compare(current, latest) < 0
+	return version.CompareVersions(current, latest) < 0
 }

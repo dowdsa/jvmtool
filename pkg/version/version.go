@@ -2,7 +2,6 @@ package version
 
 import (
 	"context"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,8 +32,6 @@ type Source interface {
 	Resolve(ctx context.Context, version string) (*Artifact, error)
 }
 
-var plusRe = regexp.MustCompile(`^\+`)
-
 // NormalizeJDKVersion converts a user input like "17", "17.0.13",
 // "jdk-17.0.13+11" into an Adoptium style version string.
 func NormalizeJDKVersion(input string) string {
@@ -58,15 +55,17 @@ func IsPreRelease(v string) bool {
 // build suffixes.
 func sortVersionsDesc(list []string) {
 	sort.Slice(list, func(i, j int) bool {
-		return compareVersions(list[i], list[j]) > 0
+		return CompareVersions(list[i], list[j]) > 0
 	})
 }
 
-// compareVersions compares two dotted version strings segment by segment.
+// CompareVersions compares two dotted version strings segment by segment.
 // Returns -1 if a < b, 0 if equal, 1 if a > b.
-func compareVersions(a, b string) int {
-	ap := versionParts(a)
-	bp := versionParts(b)
+func CompareVersions(a, b string) int {
+	a = strings.TrimPrefix(strings.TrimSpace(a), "v")
+	b = strings.TrimPrefix(strings.TrimSpace(b), "v")
+	ap := VersionParts(a)
+	bp := VersionParts(b)
 	n := len(ap)
 	if len(bp) > n {
 		n = len(bp)
@@ -89,10 +88,10 @@ func compareVersions(a, b string) int {
 	return 0
 }
 
-// versionParts splits a version into numeric segments, stripping pre-release
+// VersionParts splits a version into numeric segments, stripping pre-release
 // ("-rc1") and build ("+11") suffixes from each segment. Non-numeric segments
 // are skipped.
-func versionParts(v string) []int {
+func VersionParts(v string) []int {
 	parts := strings.Split(v, ".")
 	out := make([]int, 0, len(parts))
 	for _, p := range parts {

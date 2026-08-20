@@ -189,12 +189,33 @@ func GetProxyString() string {
 // SystemPACURL returns the configured Windows PAC URL, if any.
 func SystemPACURL() string { return systemPAC() }
 
+// Cached HTTP client to enable TCP connection reuse. Rebuilt when the
+// effective proxy changes so proxy updates are picked up immediately.
+var (
+	clientMu     sync.Mutex
+	cachedClient *http.Client
+	cachedProxy  string
+)
+
 // HTTPClient returns an *http.Client configured with the proxy (if any) and
 // sane connect/header timeouts. The overall request timeout stays 0 so large
 // downloads are not capped; hung servers are still bounded by the dial and
 // response-header timeouts.
+//
+// The client is cached and reused across calls so TCP connections (and TLS
+// sessions) are kept alive. The cache is invalidated when the resolved proxy
+// changes, so long-running processes (desktop GUI) still pick up proxy edits.
 func HTTPClient() *http.Client {
 	proxy := ProxyURL()
+	proxyKey := ""
+	if proxy != nil {
+		proxyKey = proxy.String()
+	}
+	clientMu.Lock()
+	defer clientMu.Unlock()
+	if cachedClient != nil && cachedProxy == proxyKey {
+		return cachedClient
+	}
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
@@ -217,12 +238,18 @@ func HTTPClient() *http.Client {
 			}
 		}
 	}
-	return &http.Client{Transport: transport, Timeout: 0}
+	cachedClient = &http.Client{Transport: transport, Timeout: 0}
+	cachedProxy = proxyKey
+	return cachedClient
 }
 
-// HTTPClientWithTimeout returns a client with the given timeout.
+// HTTPClientWithTimeout returns a client with the given timeout. It reuses
+// the same Transport (connection pool) as HTTPClient but creates a separate
+// client wrapper so the timeout does not affect the cached default client.
 func HTTPClientWithTimeout(timeout time.Duration) *http.Client {
-	c := HTTPClient()
-	c.Timeout = timeout
-	return c
+	base := HTTPClient()
+	return &http.Client{
+		Transport: base.Transport,
+		Timeout:   timeout,
+	}
 }

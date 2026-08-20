@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"jm/pkg/config"
+	"jm/pkg/manager"
 	"jm/pkg/update"
 	"jm/pkg/version"
 )
@@ -47,6 +48,8 @@ func init() {
 		"安装根目录 (默认 $JVMTOOL_HOME 或 $HOME/.jvmtool)")
 	rootCmd.AddCommand(newToolGroup("jdk", KindJDK))
 	rootCmd.AddCommand(newToolGroup("maven", KindMaven))
+	rootCmd.AddCommand(statusCmd())
+	rootCmd.AddCommand(projectUseCmd())
 	rootCmd.AddCommand(cleanCmd())
 	rootCmd.AddCommand(cacheCmd())
 	rootCmd.AddCommand(envCmd())
@@ -110,9 +113,14 @@ func newToolGroup(name, kind kindString) *cobra.Command {
 		Short: fmt.Sprintf("管理 %s 版本", name),
 		Long:  fmt.Sprintf("搜索、安装、切换与卸载 %s 版本。", name),
 	}
+	if kind == KindJDK {
+		group.PersistentFlags().String("distro", "temurin",
+			"JDK 发行版 (temurin, zulu)")
+	}
 	group.AddCommand(
-		searchCmd(name, kind),
-		installCmd(name, kind),
+		searchCmd(name, kind, group),
+		infoCmd(name, kind, group),
+		installCmd(name, kind, group),
 		listCmd(name, kind),
 		useCmd(name, kind),
 		uninstallCmd(name, kind),
@@ -120,6 +128,20 @@ func newToolGroup(name, kind kindString) *cobra.Command {
 		importCmd(name, kind),
 	)
 	return group
+}
+
+// getDistro extracts the --distro flag from the parent command (if present).
+func getDistro(group *cobra.Command) string {
+	if group == nil {
+		return ""
+	}
+	v, _ := group.Flags().GetString("distro")
+	return v
+}
+
+// newManager creates a Manager using the --distro flag when applicable.
+func newManager(kind kindString, group *cobra.Command) *manager.Manager {
+	return manager.NewManagerForDistro(cfg, manager.Kind(kind), getDistro(group))
 }
 
 func cleanCmd() *cobra.Command {

@@ -32,10 +32,17 @@ type Manager struct {
 }
 
 func NewManager(cfg *config.Config, kind Kind) *Manager {
+	return NewManagerForDistro(cfg, kind, "")
+}
+
+// NewManagerForDistro creates a Manager with a JDK source for the given
+// distribution (e.g. "temurin", "zulu"). The distro parameter is ignored
+// for non-JDK kinds.
+func NewManagerForDistro(cfg *config.Config, kind Kind, distro string) *Manager {
 	var src version.Source
 	switch kind {
 	case KindJDK:
-		src = version.NewJDKSource()
+		src = version.NewJDKSourceForDistro(distro)
 	case KindMaven:
 		src = version.NewMavenSource()
 	}
@@ -62,20 +69,39 @@ func (m *Manager) currentSymlink() string {
 	return filepath.Join(m.toolDir(), "current")
 }
 
+// lockStaleThreshold is the maximum age of a lock file before it is
+// considered abandoned. No jm operation should hold the lock for more than
+// a few minutes; anything older is from a crashed/killed process.
+const lockStaleThreshold = 5 * time.Minute
+
 func (m *Manager) lock(ctx context.Context) (func(), error) {
 	if err := m.Cfg.Ensure(); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(m.Cfg.Root, ".jm.lock")
 	deadline := time.Now().Add(30 * time.Second)
+	staleChecked := false
 	for {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 		if err == nil {
+			// Write PID for diagnostic purposes.
+			fmt.Fprintf(f, "%d", os.Getpid())
 			_ = f.Close()
 			return func() { _ = os.Remove(path) }, nil
 		}
 		if !errors.Is(err, os.ErrExist) {
 			return nil, err
+		}
+		// First time we see the lock: check if it's stale (crashed process).
+		if !staleChecked {
+			staleChecked = true
+			if info, serr := os.Stat(path); serr == nil {
+				if time.Since(info.ModTime()) > lockStaleThreshold {
+					fmt.Fprintf(os.Stderr, "清理残留锁文件 (已超过 %s)\n", lockStaleThreshold)
+					_ = os.Remove(path)
+					continue
+				}
+			}
 		}
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -355,22 +381,23 @@ func (m *Manager) applyEnv(version string) {
 }
 
 // Uninstall removes an installed version. If it is the current version, the
-// "current" symlink and the shell environment block are cleaned up too.
-func (m *Manager) Uninstall(versionArg string) (string, error) {
+// tool automatically falls back to the newest remaining version (if any).
+// Returns (uninstalled version, fallback version or "", error).
+func (m *Manager) Uninstall(versionArg string) (string, string, error) {
 	release, err := m.lock(context.Background())
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer release()
 
 	installed, err := m.Installed()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	// support partial version arguments, mirroring `use`
 	exact := matchInstalled(installed, versionArg)
 	if exact == "" {
-		return "", fmt.Errorf("%s %s is not installed", m.Kind, versionArg)
+		return "", "", fmt.Errorf("%s %s is not installed", m.Kind, versionArg)
 	}
 
 	wasCurrent := false
@@ -380,16 +407,43 @@ func (m *Manager) Uninstall(versionArg string) (string, error) {
 	}
 
 	if err := os.RemoveAll(m.installPath(exact)); err != nil {
-		return "", err
+		return "", "", err
 	}
 	// Remove only cache archives belonging to the uninstalled version. Other
 	// versions may still need their partial downloads for resume support.
 	_ = m.removeVersionCache(exact)
 
+	// Fallback: if the uninstalled version was current, switch to the
+	// newest remaining version so java/mvn commands keep working.
+	var fallback string
 	if wasCurrent {
-		m.cleanupEnv(exact)
+		fallback = m.newestRemaining(installed, exact)
+		if fallback != "" {
+			if _, uerr := m.Use(fallback); uerr != nil {
+				// Use failed; fall through to manual cleanup.
+				fallback = ""
+			}
+		}
+		if fallback == "" {
+			m.cleanupEnv(exact)
+		}
 	}
-	return exact, nil
+	return exact, fallback, nil
+}
+
+// newestRemaining returns the highest version from the installed list
+// excluding the given version, or "" if none remain.
+func (m *Manager) newestRemaining(installed []string, exclude string) string {
+	var best string
+	for _, v := range installed {
+		if v == exclude {
+			continue
+		}
+		if best == "" || version.CompareVersions(v, best) > 0 {
+			best = v
+		}
+	}
+	return best
 }
 
 func (m *Manager) removeVersionCache(ver string) error {
@@ -461,12 +515,33 @@ func clearUserEnvIfMatches(name, path string) {
 }
 
 // matchInstalled resolves a (possibly partial) version argument against the
-// installed list: exact match, plain prefix match, or prefix-plus-dot match.
+// installed list. Match priority:
+//  1. Exact match ("17.0.13+11" == "17.0.13+11")
+//  2. Prefix+dot match ("17" matches "17.0.13+11")
+//  3. Plain prefix match, only when exactly one candidate matches
+//     (prevents "1" from silently matching "11.0.32+9" when 17 is also installed)
 func matchInstalled(installed []string, arg string) string {
+	// 1. Exact match.
 	for _, v := range installed {
-		if v == arg || strings.HasPrefix(v, arg) || strings.HasPrefix(v, arg+".") {
+		if v == arg {
 			return v
 		}
+	}
+	// 2. Prefix+dot match (e.g. "17" → "17.0.13+11").
+	for _, v := range installed {
+		if strings.HasPrefix(v, arg+".") {
+			return v
+		}
+	}
+	// 3. Plain prefix match — only accept when unique.
+	var matches []string
+	for _, v := range installed {
+		if strings.HasPrefix(v, arg) {
+			matches = append(matches, v)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0]
 	}
 	return ""
 }
@@ -479,17 +554,4 @@ func (m *Manager) Clean() error {
 	}
 	defer release()
 	return os.RemoveAll(m.Cfg.CacheDir())
-}
-
-func humanSize(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for m := n / unit; m >= unit; m /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }

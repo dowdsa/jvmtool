@@ -1,17 +1,20 @@
 # jvmtool
 
-使用 Go 编写的多版本 JDK (Temurin/Adoptium) 与 Maven 管理工具。
+使用 Go 编写的多版本 JDK 与 Maven 管理工具，支持 Temurin (Adoptium) 和 Zulu (Azul) 两种 JDK 发行版。
 
 ## 功能
 
-- **search** 从远程源搜索可下载版本（JDK 走 Adoptium API，Maven 走 Apache 中央仓库）
+- **status** 一条命令查看 JDK、Maven 当前版本、安装数量和缓存占用
+- **search** 从远程源搜索可下载版本（JDK 走 Adoptium / Zulu API，Maven 走 Apache 中央仓库）
+- **info** 查看指定版本的详细信息（大小、校验和、下载链接、镜像源）
 - **install** 下载、校验（SHA256/SHA512）并解压安装，支持断点续传与进度条
-- **use** 切换当前版本（维护 `current` 符号链接），并自动配置 shell 环境变量
+- **use** 切换当前版本（维护 `current` 符号链接），并自动配置 shell 环境变量；支持通过 `.jvmtoolrc` 项目级切换
 - **list** 列出已安装版本
-- **uninstall** 卸载指定版本，并自动清理对应的环境变量
+- **uninstall** 卸载指定版本，卸载当前版本时自动回退到剩余的最新版本
 - **current** 显示当前版本并给出环境变量提示
 - **clean** 清理下载缓存
 - **env** 查看/清理 shell 环境变量配置（`jm env show` / `jm env clean`）
+- **--distro** JDK 子命令支持 `--distro` 参数切换发行版（temurin / zulu）
 - **桌面端** Windows GUI（基于 Wails），可视化列表/切换/搜索安装/卸载
 
 ## 安装
@@ -70,13 +73,27 @@ wails build -platform windows/amd64
 ## 使用
 
 ```bash
+# 查看全局状态（当前版本、安装数、缓存大小）
+jm status
+
 # 搜索版本
 jm jdk search 17
 jm maven search 3.9
 
+# 搜索 Zulu 发行版
+jm jdk search 17 --distro zulu
+
+# 查看版本详情（大小、校验和、镜像源）
+jm jdk info 21
+jm maven info 3.9
+jm jdk info 17 --distro zulu
+
 # 安装
 jm jdk install 21      # 支持部分版本号，自动解析最新
 jm maven install 3.9.11
+
+# 安装 Zulu 发行版
+jm jdk install 17 --distro zulu
 
 # 切换当前版本
 jm jdk use 21
@@ -104,7 +121,7 @@ jm completion bash > ~/.local/share/bash-completion/completions/jm
 jm completion zsh > ~/.zfunc/_jm
 # PowerShell: jm completion powershell | Out-String | Invoke-Expression
 
-# 卸载
+# 卸载（卸载当前版本时自动回退到剩余的最新版本）
 jm jdk uninstall 21.0.12+8
 
 # 清理缓存
@@ -119,6 +136,51 @@ export M2_HOME=$JVMTOOL_HOME/maven/current
 ```
 
 切换版本后重新加载 shell 即生效：`source ~/.bashrc`。
+
+## 项目级版本切换（.jvmtoolrc）
+
+在项目根目录创建 `.jvmtoolrc` 文件，指定 JDK 和 Maven 版本：
+
+```
+# .jvmtoolrc
+jdk=17
+maven=3.9.11
+```
+
+然后使用 `jm use` 一键切换：
+
+```bash
+# 在项目目录下，同时切换 JDK + Maven
+jm use
+
+# 或者只切换其中一个（读取 .jvmtoolrc 中对应配置）
+jm jdk use
+jm maven use
+```
+
+`.jvmtoolrc` 会从当前目录向上查找，子目录也能继承父目录的配置。类似 `.nvmrc` / `.ruby-version` 的使用方式。
+
+## JDK 发行版
+
+通过 `--distro` 参数选择 JDK 发行版，默认使用 Temurin (Adoptium)：
+
+| 发行版 | 说明 | `--distro` 值 |
+|--------|------|--------------|
+| **Temurin** | Eclipse Adoptium，社区主流发行版（默认） | `temurin` |
+| **Zulu** | Azul Zulu，提供商业支持和更长的 LTS 周期 | `zulu` |
+
+```bash
+# 搜索 Zulu 版本
+jm jdk search 17 --distro zulu
+
+# 安装 Zulu
+jm jdk install 17 --distro zulu
+
+# 查看 Zulu 版本详情
+jm jdk info 17 --distro zulu
+```
+
+不同发行版安装到同一目录下，通过版本号区分，可以并存。
 
 ## 目录结构
 

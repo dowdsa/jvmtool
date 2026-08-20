@@ -257,7 +257,7 @@ func (p *ProgressBar) renderTTY(done, total int64) {
 	}
 	fmt.Fprintf(os.Stdout, "\r%s [%s] %5.1f%% %s/%s %s/s ETA %s",
 		p.label, bar, pct*100,
-		humanSize(done), humanSize(total), humanSize(int64(rate)), eta)
+		HumanSize(done), HumanSize(total), HumanSize(int64(rate)), eta)
 }
 
 // Done clears the progress line.
@@ -269,7 +269,8 @@ func (p *ProgressBar) Done() {
 	}
 }
 
-func humanSize(n int64) string {
+// HumanSize formats a byte count into a human-readable string (e.g. "1.5 MB").
+func HumanSize(n int64) string {
 	const unit = 1024
 	if n < unit {
 		return fmt.Sprintf("%d B", n)
