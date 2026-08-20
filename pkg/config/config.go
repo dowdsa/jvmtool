@@ -27,6 +27,11 @@ type Config struct {
 type Settings struct {
 	Proxy       string `json:"proxy,omitempty"`
 	SkipVersion string `json:"skip_version,omitempty"`
+	// CloseAction controls what happens when the desktop window is closed:
+	//   "ask"  — show confirmation dialog (default)
+	//   "tray" — always hide to system tray
+	//   "quit" — always quit immediately
+	CloseAction string `json:"close_action,omitempty"`
 }
 
 // settingsCache holds the in-memory settings so ProxyURL can read them without
@@ -124,6 +129,36 @@ func (c *Config) GetProxy() string {
 	settingsMu.RLock()
 	defer settingsMu.RUnlock()
 	return settings.Proxy
+}
+
+// GetCloseAction returns the configured close behavior.
+// Returns "ask" if not set.
+func (c *Config) GetCloseAction() string {
+	settingsMu.RLock()
+	defer settingsMu.RUnlock()
+	if settings.CloseAction == "" {
+		return "ask"
+	}
+	return settings.CloseAction
+}
+
+// SetCloseAction persists the close behavior. Valid values: "ask", "tray", "quit".
+func (c *Config) SetCloseAction(action string) error {
+	if action != "ask" && action != "tray" && action != "quit" {
+		return fmt.Errorf("invalid close action %q", action)
+	}
+	if err := c.Ensure(); err != nil {
+		return err
+	}
+	settingsMu.Lock()
+	settings.CloseAction = action
+	s := settings
+	settingsMu.Unlock()
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(c.SettingsPath(), data, 0o600)
 }
 
 // GetSkipVersion returns the version the user chose to skip ("" if none).

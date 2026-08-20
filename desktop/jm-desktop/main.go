@@ -48,9 +48,16 @@ func main() {
 			setupTray()
 		},
 		OnBeforeClose: func(ctx *wailsruntime.Context) bool {
-			// 拦截关闭：隐藏窗口到托盘而非退出
-			wailsruntime.WindowHide(app.ctx)
-			return true
+			switch app.cfg.GetCloseAction() {
+			case "tray":
+				wailsruntime.WindowHide(app.ctx)
+				return true
+			case "quit":
+				return false // allow close
+			default: // "ask" — show dialog
+				wailsruntime.EventsEmit(app.ctx, "close:confirm")
+				return true
+			}
 		},
 		OnShutdown: func(ctx *wailsruntime.Context) {
 			cleanupTray()

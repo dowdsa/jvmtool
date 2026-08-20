@@ -340,6 +340,8 @@ async function openSettings() {
     try { ver = await App.GetVersion(); } catch (e) { /* ignore */ }
     let autoStart = false;
     try { autoStart = await App.GetAutoStart(); } catch (e) { /* ignore */ }
+    let closeBehavior = 'ask';
+    try { closeBehavior = await App.GetCloseBehavior(); } catch (e) { /* ignore */ }
 
     const overlay = document.createElement('div');
     overlay.id = 'settings-overlay';
@@ -356,6 +358,12 @@ async function openSettings() {
                        placeholder="例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
                        value="${escapeHTML(proxy)}" autocomplete="off" />
                 <p class="settings-hint">支持 http / https / socks5 协议。留空表示不使用代理（直连）。<br>设置后立即生效，无需重启。</p>
+                <label class="settings-label" for="close-behavior-input">关闭窗口行为</label>
+                <select class="settings-input" id="close-behavior-input">
+                    <option value="ask" ${closeBehavior === 'ask' ? 'selected' : ''}>每次询问</option>
+                    <option value="tray" ${closeBehavior === 'tray' ? 'selected' : ''}>最小化到后台</option>
+                    <option value="quit" ${closeBehavior === 'quit' ? 'selected' : ''}>直接退出</option>
+                </select>
                 <label class="settings-check"><input id="autostart-input" type="checkbox" ${autoStart ? 'checked' : ''} /> <span>开机自动启动桌面端</span></label>
                 <div class="settings-about">
                     <span class="settings-about-ver">当前版本 v${escapeHTML(ver)}</span>
@@ -373,11 +381,13 @@ async function openSettings() {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     overlay.querySelector('#settings-save').addEventListener('click', async () => {
         const value = overlay.querySelector('#proxy-input').value.trim();
+        const cb = overlay.querySelector('#close-behavior-input').value;
         try {
             await App.SetProxy(value);
             await App.SetAutoStart(overlay.querySelector('#autostart-input').checked);
+            await App.SetCloseBehavior(cb);
             close();
-            toast(value ? '代理已保存并生效' : '代理已清除');
+            toast('设置已保存');
         } catch (error) {
             toast(`保存失败：${error}`, true);
         }
@@ -442,6 +452,50 @@ function showUpdateDialog(info) {
         });
     });
 }
+
+// ---------- 关闭确认弹窗 ----------
+function showCloseDialog() {
+    if (document.querySelector('#close-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.id = 'close-overlay';
+    overlay.className = 'settings-overlay';
+    overlay.innerHTML = `
+        <div class="settings-card" style="max-width:380px">
+            <div class="settings-head">
+                <h2>关闭窗口</h2>
+            </div>
+            <div class="settings-body">
+                <p style="margin:0 0 16px;color:var(--text-secondary,#94a3b8)">关闭窗口后，jm 可以在后台继续运行，方便下次快速使用。</p>
+                <label class="settings-check" style="margin-bottom:0">
+                    <input id="close-remember" type="checkbox" />
+                    <span>不再提示，记住我的选择</span>
+                </label>
+            </div>
+            <div class="settings-foot update-foot">
+                <div class="update-actions" style="gap:8px">
+                    <button class="update-cancel" id="close-quit-btn">退出应用</button>
+                    <button class="button button-dark" id="close-tray-btn">后台运行</button>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#close-tray-btn').addEventListener('click', () => {
+        const remember = overlay.querySelector('#close-remember').checked;
+        overlay.remove();
+        App.ConfirmClose(true, remember);
+    });
+    overlay.querySelector('#close-quit-btn').addEventListener('click', () => {
+        const remember = overlay.querySelector('#close-remember').checked;
+        overlay.remove();
+        App.ConfirmClose(false, remember);
+    });
+}
+
+// Listen for close:confirm event from backend
+window.runtime.EventsOn('close:confirm', () => {
+    showCloseDialog();
+});
 
 bindProgressEvents();
 loadDownloadQueue();

@@ -129,6 +129,35 @@ func (a *App) GetAutoStart() bool { return autoStartEnabled() }
 // SetAutoStart enables or disables starting the desktop app with Windows.
 func (a *App) SetAutoStart(enabled bool) error { return setAutoStart(enabled) }
 
+// GetCloseBehavior returns the close window behavior: "ask", "tray", or "quit".
+func (a *App) GetCloseBehavior() string {
+	return a.cfg.GetCloseBehavior()
+}
+
+// SetCloseBehavior persists the close window behavior.
+func (a *App) SetCloseBehavior(behavior string) error {
+	return a.cfg.SaveCloseBehavior(behavior)
+}
+
+// ConfirmClose is called from the frontend after the close confirmation dialog.
+// hide=true means "hide to tray", hide=false means "quit app".
+// remember=true saves the choice so the dialog is not shown again.
+func (a *App) ConfirmClose(hide, remember bool) {
+	if remember {
+		if hide {
+			_ = a.cfg.SaveCloseBehavior("tray")
+		} else {
+			_ = a.cfg.SaveCloseBehavior("quit")
+		}
+	}
+	if hide {
+		runtime.WindowHide(a.ctx)
+	} else {
+		cleanupTray()
+		runtime.Quit(a.ctx)
+	}
+}
+
 // VersionInfo describes one installed version.
 type VersionInfo struct {
 	Version string `json:"version"`
