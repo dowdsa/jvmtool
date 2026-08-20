@@ -57,6 +57,7 @@ desktop/
   jm-desktop/
     main.go                # Wails 应用入口
     app.go                 # GUI 业务逻辑（List/Search/Install/Use/Uninstall）
+    tray.go                # 系统托盘（nicehash/systray，最小化到托盘）
     autostart_windows.go   # 开机自启（注册表 Run 键）
     frontend/              # Vite + 原生 JS 前端
 ```
@@ -72,7 +73,23 @@ desktop/
 7. **`.jvmtoolrc`**: 从 CWD 向上查找，支持 `jdk=` 和 `maven=`，`jm use` 无参数时读取。
 8. **多发行版**: `--distro` 持久标志挂在 `jdk` 子命令组上，通过 `NewJDKSourceForDistro` 工厂分发到对应 Source。
 
-## 当前版本: v0.5.2
+## 当前版本: v0.5.4
+
+### v0.5.4 变更
+
+**新功能:**
+- 桌面端支持最小化到系统托盘：关闭窗口时隐藏到托盘而非退出
+- 托盘右键菜单：显示窗口 / 退出
+- 使用 nicehash/systray（goroutine 安全，不阻塞 Wails 主线程）
+
+### v0.5.3 变更
+
+**修复:**
+- 桌面端导入目录报错 `OpenFileDialog is not a function`
+- `OpenFileDialog` → `OpenDirectoryDialog`（Wails v2 API 修正）
+- 对话框取消与导入失败分开处理
+
+### v0.5.2 变更
 
 ### v0.5.2 变更
 
