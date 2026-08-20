@@ -364,7 +364,7 @@ async function openSettings() {
                     <option value="tray" ${closeBehavior === 'tray' ? 'selected' : ''}>最小化到后台</option>
                     <option value="quit" ${closeBehavior === 'quit' ? 'selected' : ''}>直接退出</option>
                 </select>
-                <label class="settings-check"><input id="autostart-input" type="checkbox" ${autoStart ? 'checked' : ''} /> <span>开机自动启动桌面端</span></label>
+                <label class="settings-check"><input id="autostart-input" type="checkbox" ${autoStart ? 'checked' : ''} /> <span>开机自启动</span></label>
                 <div class="settings-about">
                     <span class="settings-about-ver">当前版本 v${escapeHTML(ver)}</span>
                     <button class="button button-dark" id="check-update-btn">检查更新</button>
