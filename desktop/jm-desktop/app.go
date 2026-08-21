@@ -131,12 +131,12 @@ func (a *App) SetAutoStart(enabled bool) error { return setAutoStart(enabled) }
 
 // GetCloseBehavior returns the close window behavior: "ask", "tray", or "quit".
 func (a *App) GetCloseBehavior() string {
-	return a.cfg.GetCloseBehavior()
+	return a.cfg.GetCloseAction()
 }
 
 // SetCloseBehavior persists the close window behavior.
 func (a *App) SetCloseBehavior(behavior string) error {
-	return a.cfg.SaveCloseBehavior(behavior)
+	return a.cfg.SetCloseAction(behavior)
 }
 
 // ConfirmClose is called from the frontend after the close confirmation dialog.
@@ -145,9 +145,9 @@ func (a *App) SetCloseBehavior(behavior string) error {
 func (a *App) ConfirmClose(hide, remember bool) {
 	if remember {
 		if hide {
-			_ = a.cfg.SaveCloseBehavior("tray")
+			_ = a.cfg.SetCloseAction("tray")
 		} else {
-			_ = a.cfg.SaveCloseBehavior("quit")
+			_ = a.cfg.SetCloseAction("quit")
 		}
 	}
 	if hide {

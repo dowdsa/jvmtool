@@ -47,7 +47,7 @@ func main() {
 			app.startup(ctx)
 			setupTray()
 		},
-		OnBeforeClose: func(ctx *wailsruntime.Context) bool {
+		OnBeforeClose: func(ctx context.Context) bool {
 			switch app.cfg.GetCloseAction() {
 			case "tray":
 				wailsruntime.WindowHide(app.ctx)
@@ -59,7 +59,7 @@ func main() {
 				return true
 			}
 		},
-		OnShutdown: func(ctx *wailsruntime.Context) {
+		OnShutdown: func(ctx context.Context) {
 			cleanupTray()
 		},
 		Bind: []interface{}{
