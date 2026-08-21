@@ -20,6 +20,9 @@ go.work.sum
 # Project memory (AI 学习笔记，仅本地，不入库)
 PROJECT_MEMORY.md
 
+# Pi agent memory
+.pi/
+
 # Dependencies (local installs)
 node_modules/
 .gocache/
