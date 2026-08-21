@@ -105,7 +105,7 @@ func (s *JDKSource) List(ctx context.Context, query string, limit int) ([]string
 			resp.Body.Close()
 			return nil, fmt.Errorf("adoptium api returned %s", resp.Status)
 		}
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 		resp.Body.Close()
 		if err != nil {
 			return nil, err
@@ -198,7 +198,7 @@ func (s *JDKSource) Resolve(ctx context.Context, version string) (*Artifact, err
 			resp.Body.Close()
 			return nil, fmt.Errorf("adoptium api returned %s for version %s", resp.Status, exact)
 		}
-		body, err := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 		resp.Body.Close()
 		if err != nil {
 			return nil, err

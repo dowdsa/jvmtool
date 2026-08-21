@@ -167,9 +167,10 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 }
 
 // VerifySHA256 checks the file against an expected hex sha256 digest.
+// Returns (false, nil) when expected is empty to prevent bypass via empty value.
 func VerifySHA256(path, expected string) (bool, error) {
 	if expected == "" {
-		return true, nil
+		return false, nil
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -185,9 +186,10 @@ func VerifySHA256(path, expected string) (bool, error) {
 }
 
 // VerifySHA512 checks the file against an expected hex sha512 digest.
+// Returns (false, nil) when expected is empty to prevent bypass via empty value.
 func VerifySHA512(path, expected string) (bool, error) {
 	if expected == "" {
-		return true, nil
+		return false, nil
 	}
 	f, err := os.Open(path)
 	if err != nil {

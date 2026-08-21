@@ -40,9 +40,14 @@ func socks5Dialer(u *url.URL) func(ctx context.Context, network, addr string) (n
 // socks5Handshake performs the SOCKS5 greeting, optional username/password
 // authentication (RFC 1929) and a CONNECT request to target (RFC 1928).
 func socks5Handshake(conn net.Conn, user, pass, target string) error {
-	methods := []byte{0x00} // no authentication
+	// When credentials are configured, only offer username/password auth (0x02).
+	// Offering no-auth (0x00) alongside credentials allows a malicious proxy to
+	// downgrade to unauthenticated mode, bypassing security.
+	var methods []byte
 	if user != "" {
-		methods = append(methods, 0x02) // also offer user/password
+		methods = []byte{0x02}
+	} else {
+		methods = []byte{0x00}
 	}
 	greet := append([]byte{0x05, byte(len(methods))}, methods...)
 	if _, err := conn.Write(greet); err != nil {

@@ -100,7 +100,7 @@ func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]strin
 			resp.Body.Close()
 			return nil, fmt.Errorf("zulu api returned %s", resp.Status)
 		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 		resp.Body.Close()
 		if err != nil {
 			return nil, err
@@ -162,7 +162,7 @@ func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, er
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("zulu api returned %s", resp.Status)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 5<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 	if err != nil {
 		return nil, err
 	}

@@ -43,7 +43,7 @@ func (s *MavenSource) fetchMetadata(ctx context.Context) (*metadata, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("maven metadata returned %s", resp.Status)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 	if err != nil {
 		return nil, err
 	}

@@ -124,9 +124,16 @@ setup_env() {
 
   local marker="# >>> jm >>>"
   local block
+  # Validate JVMTOOL_HOME against shell injection: reject paths with
+  # characters that could break out of single quotes or command substitution.
+  case "$JVMTOOL_HOME" in
+    *\'*|*\`*|*\$*|*\;*|*\|*|*\&*)
+      die "JVMTOOL_HOME 包含不安全字符: $JVMTOOL_HOME"
+      ;;
+  esac
   block=$(cat <<EOF
 $marker
-export JVMTOOL_HOME="\${JVMTOOL_HOME:-$JVMTOOL_HOME}"
+export JVMTOOL_HOME='${JVMTOOL_HOME}'
 if [ -d "\$JVMTOOL_HOME/jdk/current" ]; then
     export JAVA_HOME="\$JVMTOOL_HOME/jdk/current"
     export PATH="\$JAVA_HOME/bin:\$PATH"

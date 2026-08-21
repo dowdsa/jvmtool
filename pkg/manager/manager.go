@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -95,12 +96,9 @@ func (m *Manager) lock(ctx context.Context) (func(), error) {
 		// First time we see the lock: check if it's stale (crashed process).
 		if !staleChecked {
 			staleChecked = true
-			if info, serr := os.Stat(path); serr == nil {
-				if time.Since(info.ModTime()) > lockStaleThreshold {
-					fmt.Fprintf(os.Stderr, "清理残留锁文件 (已超过 %s)\n", lockStaleThreshold)
-					_ = os.Remove(path)
-					continue
-				}
+			if isLockStale(path) {
+				_ = os.Remove(path)
+				continue
 			}
 		}
 		if ctx.Err() != nil {
@@ -231,13 +229,24 @@ func (m *Manager) InstallWithProgress(ctx context.Context, versionArg string, pr
 }
 
 func (m *Manager) verify(path string, art *version.Artifact) (bool, error) {
+	// Require a checksum: reject artifacts with no checksum to prevent
+	// bypass via empty expected value (security: empty = skip verification).
+	if art.SHA256 == "" && art.SHA512 == "" {
+		return false, fmt.Errorf("no checksum provided for %s; refusing to install without verification", art.Version)
+	}
 	if art.SHA256 != "" {
-		return download.VerifySHA256(path, art.SHA256)
+		ok, err := download.VerifySHA256(path, art.SHA256)
+		if err != nil || !ok {
+			return false, err
+		}
 	}
-	if art.SHA512 == "" {
-		return false, fmt.Errorf("no checksum provided for %s", art.Version)
+	if art.SHA512 != "" {
+		ok, err := download.VerifySHA512(path, art.SHA512)
+		if err != nil || !ok {
+			return false, err
+		}
 	}
-	return download.VerifySHA512(path, art.SHA512)
+	return true, nil
 }
 
 // downloadWithMirrors downloads preferring faster mirrors first, falling back
@@ -429,6 +438,35 @@ func (m *Manager) Uninstall(versionArg string) (string, string, error) {
 		}
 	}
 	return exact, fallback, nil
+}
+
+// isLockStale checks whether a lock file is abandoned. A lock is stale if:
+// - the file is older than lockStaleThreshold (crashed process), OR
+// - the PID in the lock file belongs to a process that no longer exists.
+func isLockStale(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	// Time-based check: any lock older than threshold is definitely stale.
+	if time.Since(info.ModTime()) > lockStaleThreshold {
+		fmt.Fprintf(os.Stderr, "清理残留锁文件 (已超过 %s)\n", lockStaleThreshold)
+		return true
+	}
+	// PID-based check: read PID from lock file and verify process is alive.
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 0 {
+		return false
+	}
+	if !processAlive(pid) {
+		fmt.Fprintf(os.Stderr, "清理残留锁文件 (PID %d 已不存在)\n", pid)
+		return true
+	}
+	return false
 }
 
 // newestRemaining returns the highest version from the installed list

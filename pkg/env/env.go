@@ -28,11 +28,17 @@ func HasBlock(rcFile string) bool {
 	return strings.Contains(string(content), marker)
 }
 
+// shellQuote wraps s in single quotes for safe shell embedding.
+// Single quotes in s are escaped as '\'' (end quote, escaped quote, start quote).
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
 // Block returns the environment block content written by install.sh.
 func Block(root string) string {
 	var b strings.Builder
 	b.WriteString(marker + "\n")
-	fmt.Fprintf(&b, "export JVMTOOL_HOME=\"${JVMTOOL_HOME:-%s}\"\n", root)
+	fmt.Fprintf(&b, "export JVMTOOL_HOME=\"${JVMTOOL_HOME:-%s}\"\n", shellQuote(root))
 	b.WriteString("if [ -d \"$JVMTOOL_HOME/jdk/current\" ]; then\n")
 	b.WriteString("    export JAVA_HOME=\"$JVMTOOL_HOME/jdk/current\"\n")
 	b.WriteString("    export PATH=\"$JAVA_HOME/bin:$PATH\"\n")

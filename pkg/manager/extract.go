@@ -11,6 +11,10 @@ import (
 	"strings"
 )
 
+// maxExtractSize is the maximum total bytes allowed during archive extraction.
+// This protects against zip/tar bombs (e.g. 42.zip: 42KB → 4.5PB).
+const maxExtractSize int64 = 2 << 30 // 2 GB
+
 // extractArchive extracts a .tar.gz or .zip archive into destDir, moving the
 // single top-level directory into destDir under its own name.
 func extractArchive(src, destDir string) error {
@@ -41,6 +45,7 @@ func extractTarGz(src, destDir string) error {
 	}
 	defer os.RemoveAll(tmp)
 
+	var extractedSize int64
 	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()
@@ -50,7 +55,12 @@ func extractTarGz(src, destDir string) error {
 		if err != nil {
 			return err
 		}
-		if err := safeExtractEntry(tmp, hdr, tr); err != nil {
+		extractedSize += hdr.Size
+		if extractedSize > maxExtractSize {
+			return fmt.Errorf("archive exceeds maximum extraction size (%d GB)", maxExtractSize>>30)
+		}
+		remaining := maxExtractSize - extractedSize
+		if err := safeExtractEntry(tmp, hdr, io.LimitReader(tr, remaining+1)); err != nil {
 			return err
 		}
 	}
@@ -71,6 +81,7 @@ func extractZip(src, destDir string) error {
 	}
 	defer os.RemoveAll(tmp)
 
+	var extractedSize int64
 	for _, f := range r.File {
 		target := filepath.Join(tmp, filepath.Clean(f.Name))
 		if !strings.HasPrefix(target, filepath.Clean(tmp)+string(os.PathSeparator)) {
@@ -98,13 +109,16 @@ func extractZip(src, destDir string) error {
 			rc.Close()
 			return err
 		}
-		if _, err := io.Copy(out, rc); err != nil {
-			out.Close()
-			rc.Close()
-			return err
-		}
+		n, copyErr := io.Copy(out, rc)
 		out.Close()
 		rc.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		extractedSize += n
+		if extractedSize > maxExtractSize {
+			return fmt.Errorf("archive exceeds maximum extraction size (%d GB)", maxExtractSize>>30)
+		}
 	}
 	return moveSingleDir(tmp, destDir)
 }

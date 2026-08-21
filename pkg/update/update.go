@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"crypto/rand"
+	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -210,7 +212,7 @@ func verifyReleaseAsset(ctx context.Context, rel *Release, assetName, path strin
 		return err
 	}
 	want := ""
-	contents, err := io.ReadAll(resp.Body)
+	contents, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1 MB limit
 	if err != nil {
 		return err
 	}
@@ -250,7 +252,13 @@ func ApplyCLI(downloaded, executable string) error {
 }
 
 func scheduleWindowsReplacement(downloaded, executable string) error {
-	script := filepath.Join(os.TempDir(), "jm-cli-update-"+strconv.FormatInt(time.Now().UnixNano(), 10)+".ps1")
+	// Use cryptographic random suffix to prevent TOCTOU attacks where
+	// a local attacker could replace the script between write and execute.
+	randBytes := make([]byte, 16)
+	if _, err := rand.Read(randBytes); err != nil {
+		return fmt.Errorf("generate random suffix: %w", err)
+	}
+	script := filepath.Join(os.TempDir(), "jm-cli-update-"+hex.EncodeToString(randBytes)+".ps1")
 	content := `$ErrorActionPreference = "SilentlyContinue"
 $source = $args[0]
 $target = $args[1]
