@@ -29,9 +29,9 @@ func HasBlock(rcFile string) bool {
 }
 
 // shellQuote wraps s in single quotes for safe shell embedding.
-// Single quotes in s are escaped as '\'' (end quote, escaped quote, start quote).
+// Single quotes in s are escaped as '\” (end quote, escaped quote, start quote).
 func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+	return `'` + strings.ReplaceAll(s, `'`, `'\''`) + `'`
 }
 
 // Block returns the environment block content written by install.sh.
