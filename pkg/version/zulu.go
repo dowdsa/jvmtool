@@ -71,68 +71,59 @@ type zuluPackage struct {
 }
 
 func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]string, error) {
-	var out []string
-	for page := 1; ; page++ {
-		u, _ := url.Parse(zuluAPI)
-		q := url.Values{}
-		q.Set("os", s.OS)
-		q.Set("arch", s.Arch)
-		q.Set("archive_type", zuluArchiveType())
-		q.Set("java_package_type", "jdk")
-		q.Set("javafx_bundled", "false")
-		q.Set("release_status", "ga")
-		q.Set("page", strconv.Itoa(page))
-		q.Set("page_size", "50")
-		if query != "" {
-			q.Set("java_version", NormalizeJDKVersion(query))
-		}
-		u.RawQuery = q.Encode()
+	u, _ := url.Parse(zuluAPI)
+	q := url.Values{}
+	q.Set("os", s.OS)
+	q.Set("arch", s.Arch)
+	q.Set("archive_type", zuluArchiveType())
+	q.Set("java_package_type", "jdk")
+	q.Set("javafx_bundled", "false")
+	q.Set("release_status", "ga")
+	// Azul API does not support pagination; it returns all matching results
+	if query != "" {
+		// API expects array format: java_version=[8] or java_version=[17]
+		q.Set("java_version", "["+NormalizeJDKVersion(query)+"]")
+	}
+	u.RawQuery = q.Encode()
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := s.Client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return nil, fmt.Errorf("zulu api returned %s", resp.Status)
-		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
-		if err != nil {
-			return nil, err
+		return nil, fmt.Errorf("zulu api returned %s", resp.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
+	resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+	var pkgs []zuluPackage
+	if err := json.Unmarshal(body, &pkgs); err != nil {
+		return nil, err
+	}
+
+	var out []string
+	seen := make(map[string]bool)
+	for _, pkg := range pkgs {
+		if !pkg.Latest || pkg.ReleaseStatus != "ga" {
+			continue
 		}
-		var pkgs []zuluPackage
-		if err := json.Unmarshal(body, &pkgs); err != nil {
-			return nil, err
-		}
-		for _, pkg := range pkgs {
-			if !pkg.Latest || pkg.ReleaseStatus != "ga" {
-				continue
-			}
-			v := zuluVersionString(pkg)
+		v := zuluVersionString(pkg)
+		if !seen[v] {
+			seen[v] = true
 			out = append(out, v)
 			if limit > 0 && len(out) >= limit {
 				return out, nil
 			}
 		}
-		if len(pkgs) < 50 {
-			break
-		}
 	}
-	// Zulu API returns newest first already, but deduplicate.
-	seen := make(map[string]bool)
-	var deduped []string
-	for _, v := range out {
-		if !seen[v] {
-			seen[v] = true
-			deduped = append(deduped, v)
-		}
-	}
-	return deduped, nil
+	return out, nil
 }
 
 func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, error) {
@@ -145,9 +136,8 @@ func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, er
 	q.Set("java_package_type", "jdk")
 	q.Set("javafx_bundled", "false")
 	q.Set("release_status", "ga")
-	q.Set("java_version", version)
-	q.Set("page", "1")
-	q.Set("page_size", "5")
+	// API expects array format: java_version=[17]
+	q.Set("java_version", "["+version+"]")
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
