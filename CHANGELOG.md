@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.5] - 2026-08-21
+
+### 修复
+
+- **修复桌面端启动崩溃**：`getlantern/systray` 库要求先调用 `systray.Run()` 初始化内部消息循环，v0.5.4 直接调用 `SetIcon` 导致 Windows 上 panic 崩溃，现已修复为正确的初始化流程
+- 添加 panic recovery 防止托盘崩溃影响主应用
+- 日志重定向到 `%TEMP%/jm-desktop.log` 便于调试
+
 ## [0.5.4] - 2026-08-21
 
 ### 新增
