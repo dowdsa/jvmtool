@@ -151,8 +151,10 @@ async function importInstallation() {
         source = await window.runtime.OpenDirectoryDialog({
             Title: `选择要导入的 ${PRODUCTS[activeKind].short} 目录`,
         });
-    } catch {
-        return; // 用户取消选择
+    } catch (e) {
+        console.error('OpenDirectoryDialog failed:', e);
+        toast(`打开目录选择器失败：${e}`, true);
+        return;
     }
     if (!source) return;
     try {
@@ -460,22 +462,22 @@ function showCloseDialog() {
     overlay.id = 'close-overlay';
     overlay.className = 'settings-overlay';
     overlay.innerHTML = `
-        <div class="settings-card" style="max-width:380px">
+        <div class="settings-card" style="max-width:400px">
             <div class="settings-head">
                 <h2>关闭窗口</h2>
             </div>
             <div class="settings-body">
-                <p style="margin:0 0 16px;color:var(--text-secondary,#94a3b8)">关闭窗口后，jm 可以在后台继续运行，方便下次快速使用。</p>
-                <label class="settings-check" style="margin-bottom:0">
-                    <input id="close-remember" type="checkbox" />
-                    <span>不再提示，记住我的选择</span>
-                </label>
+                <p style="margin:0;color:var(--text-secondary,#94a3b8)">关闭窗口后，jm 可以在后台继续运行，方便下次快速使用。</p>
             </div>
-            <div class="settings-foot update-foot">
-                <div class="update-actions" style="gap:8px">
+            <div class="settings-foot update-foot" style="flex-direction:column;gap:12px">
+                <div class="update-actions" style="justify-content:flex-end;gap:8px">
                     <button class="update-cancel" id="close-quit-btn">退出应用</button>
                     <button class="button button-dark" id="close-tray-btn">后台运行</button>
                 </div>
+                <label class="settings-check" style="align-self:flex-start;margin:0">
+                    <input id="close-remember" type="checkbox" />
+                    <span>不再提示，记住我的选择</span>
+                </label>
             </div>
         </div>`;
     document.body.appendChild(overlay);
