@@ -12,6 +12,9 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// trayIconBytes holds the generated tray icon PNG data.
+var trayIconBytes []byte
+
 // setupTray launches the system tray in a background goroutine.
 // systray.Run() initialises the native message loop on a dedicated thread,
 // then calls onReady (on the same thread) to set up the icon and menu.
