@@ -460,21 +460,21 @@ function showCloseDialog() {
     overlay.id = 'close-overlay';
     overlay.className = 'settings-overlay';
     overlay.innerHTML = `
-        <div class="settings-card" style="max-width:400px">
+        <div class="settings-card" style="max-width:420px">
             <div class="settings-head">
                 <h2>关闭窗口</h2>
             </div>
-            <div class="settings-body">
+            <div class="settings-body" style="padding-bottom:8px">
                 <p style="margin:0;color:var(--text-secondary,#94a3b8)">关闭窗口后，jm 可以在后台继续运行，方便下次快速使用。</p>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px 20px">
-                <label class="settings-check" style="margin:0">
-                    <input id="close-remember" type="checkbox" />
-                    <span>不再提示，记住我的选择</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 24px 20px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-size:13px;color:var(--text-secondary,#94a3b8)">
+                    <input id="close-remember" type="checkbox" style="cursor:pointer" />
+                    <span>不再提示</span>
                 </label>
                 <div style="display:flex;gap:8px">
-                    <button class="update-cancel" id="close-quit-btn">退出应用</button>
-                    <button class="button button-dark" id="close-tray-btn">后台运行</button>
+                    <button class="update-cancel" id="close-quit-btn" style="cursor:pointer">退出应用</button>
+                    <button class="button button-dark" id="close-tray-btn" style="cursor:pointer">后台运行</button>
                 </div>
             </div>
         </div>`;

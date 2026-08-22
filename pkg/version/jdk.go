@@ -17,14 +17,16 @@ import (
 const adoptiumAPI = "https://api.adoptium.net/v3"
 
 // SupportedDistros lists the JDK distributions that can be managed.
-var SupportedDistros = []string{"temurin", "zulu"}
+var SupportedDistros = []string{"temurin", "zulu", "openjdk"}
 
 // NewJDKSourceForDistro returns a JDK Source for the given distribution.
-// Supported: "temurin" (default), "zulu".
+// Supported: "temurin" (default), "zulu", "openjdk".
 func NewJDKSourceForDistro(distro string) Source {
 	switch strings.ToLower(distro) {
 	case "zulu":
 		return NewZuluSource()
+	case "openjdk":
+		return NewOpenJDKSource()
 	default:
 		return NewJDKSource()
 	}
