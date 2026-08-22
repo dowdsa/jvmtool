@@ -190,8 +190,8 @@ func (a *App) Current(kind string) string {
 }
 
 // Search returns available remote versions matching the query.
-func (a *App) Search(kind, query string) []string {
-	m := manager.NewManager(a.cfg, manager.Kind(kind))
+func (a *App) Search(kind, query, distro string) []string {
+	m := manager.NewManagerForDistro(a.cfg, manager.Kind(kind), distro)
 	versions, err := m.Search(a.ctx, query, 50)
 	if err != nil {
 		return []string{}
@@ -255,7 +255,7 @@ type InstallResult struct {
 // Install downloads and installs a version. Progress is emitted via the
 // "install:progress" event (throttled to ~100ms); the promise resolves with a
 // structured result.
-func (a *App) Install(kind, version string) InstallResult {
+func (a *App) Install(kind, version, distro string) InstallResult {
 	a.mu.Lock()
 	if a.busy {
 		a.mu.Unlock()
