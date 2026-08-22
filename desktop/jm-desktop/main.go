@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -33,6 +34,13 @@ func showError(title, msg string) {
 }
 
 func main() {
+	// Redirect log output to a file so panics and errors are visible
+	// even when the GUI has no console.
+	logPath := filepath.Join(os.TempDir(), "jm-desktop.log")
+	if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
+		log.SetOutput(f)
+	}
+
 	app = NewApp()
 
 	err := wails.Run(&options.App{

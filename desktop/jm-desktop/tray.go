@@ -2,27 +2,34 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
+	"log"
 
 	"github.com/getlantern/systray"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// trayIconBytes holds the generated tray icon (a small blue square).
-var trayIconBytes []byte
-
-// setupTray initialises the system tray in a background goroutine.
+// setupTray launches the system tray in a background goroutine.
+// systray.Run() initialises the native message loop on a dedicated thread,
+// then calls onReady (on the same thread) to set up the icon and menu.
 func setupTray() {
-	trayIconBytes = generateTrayIcon()
-	go initTray()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("tray: setup failed (recovered): %v", r)
+			}
+		}()
+		trayIconBytes = generateTrayIcon()
+		systray.Run(trayOnReady, trayOnExit)
+	}()
 }
 
-// initTray configures the tray icon and menu, and processes click events.
-// Called from a goroutine; nicehash/systray runs its event loop on a
-// separate OS thread on Windows so it does not block the Wails main loop.
-func initTray() {
+// trayOnReady runs on the systray thread after the native loop starts.
+// It sets up the icon, title, and menu items.
+func trayOnReady() {
 	systray.SetIcon(trayIconBytes)
 	systray.SetTitle("jm")
 	systray.SetTooltip("jm - JDK & Maven 版本管理")
@@ -31,6 +38,8 @@ func initTray() {
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("退出", "退出 jm")
 
+	// Block here to process menu events. This goroutine is already locked
+	// to its OS thread by systray.Run(), so Wails calls are safe.
 	for {
 		select {
 		case <-mShow.ClickedCh:
@@ -45,27 +54,33 @@ func initTray() {
 	}
 }
 
+// trayOnExit is called when systray.Quit() is invoked.
+func trayOnExit() {
+	log.Println("tray: exited")
+}
+
 // cleanupTray shuts down the tray icon when the app exits.
 func cleanupTray() {
+	defer func() { recover() }()
 	systray.Quit()
 }
 
-// generateTrayIcon builds a simple 16×16 blue square PNG at startup.
-// This avoids embedding an external icon file. Replace with a real
-// .ico/.png for production use.
+// generateTrayIcon builds a 16×16 blue square PNG at startup.
+// Replace with a real .ico/.png for production use.
 func generateTrayIcon() []byte {
 	const size = 16
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
 	c := color.RGBA{R: 59, G: 130, B: 246, A: 255}
-	for i := range img.Pix {
-		if i%4 == 0 {
-			img.Pix[i] = c.R
-			img.Pix[i+1] = c.G
-			img.Pix[i+2] = c.B
-			img.Pix[i+3] = c.A
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			img.Set(x, y, c)
 		}
 	}
 	var buf bytes.Buffer
-	_ = png.Encode(&buf, img)
+	if err := png.Encode(&buf, img); err != nil {
+		log.Printf("tray: failed to encode icon: %v", err)
+		return nil
+	}
+	fmt.Printf("tray: generated %d-byte icon\n", buf.Len())
 	return buf.Bytes()
 }
