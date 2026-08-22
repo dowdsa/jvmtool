@@ -5,6 +5,20 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.6] - 2026-08-22
+
+### 新增
+
+- 新增 Oracle OpenJDK 发行版支持（`--distro openjdk`），包含 JDK 17/20/21/22/23
+- 默认 JDK 发行版改为 OpenJDK（此前为 Temurin）
+- 桌面端支持多 JDK 发行版选择：搜索页面新增发行版下拉框
+- 下载进度改为独立页面显示，侧边栏新增"下载管理"导航项
+
+### 修复
+
+- 导入目录功能：通过 Go 侧 `SelectDirectory` 绑定方法调用原生目录选择器
+- 关闭弹窗布局：复选框左侧、按钮右侧，不再强制勾选
+
 ## [0.5.5] - 2026-08-21
 
 ### 修复
