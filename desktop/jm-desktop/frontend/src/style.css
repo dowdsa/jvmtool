@@ -124,6 +124,26 @@ h2 { margin:0; font:800 24px/1.1 "Playfair Display","Microsoft YaHei",serif; let
 .update-skip:hover { color:var(--ink); }
 .download-dock { position:fixed; right:28px; bottom:26px; z-index:40; width:min(420px,calc(100vw - 56px)); pointer-events:auto; }
 .download-dock .progress-row { display:flex; align-items:center; gap:16px; padding:16px; border:1px solid var(--ink); background:var(--paper); box-shadow:7px 7px 0 rgba(16,16,16,.18); }
+
+/* Download page */
+.download-list { border-top:1px solid var(--ink); }
+.download-list-done { opacity:.6; }
+.dl-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 4px; border-bottom:1px solid var(--line); }
+.dl-row-main { flex:1; min-width:0; }
+.dl-row-info { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.dl-row-title { font:600 14px "DM Mono",monospace; color:var(--ink); }
+.dl-row-state { font:500 10px "DM Mono",monospace; letter-spacing:.06em; color:var(--muted); }
+.dl-row-progress { margin-top:10px; }
+.dl-row-track { height:6px; background:var(--line); border-radius:3px; overflow:hidden; }
+.dl-row-fill { height:100%; background:var(--ink); border-radius:3px; transition:width .3s ease; }
+.dl-row-meta { display:flex; gap:16px; margin-top:6px; color:var(--muted); font:500 10px "DM Mono",monospace; letter-spacing:.04em; }
+.dl-row-actions { display:flex; gap:6px; flex-shrink:0; }
+.dl-state-error .dl-row-state { color:var(--danger); }
+.dl-state-error .dl-row-fill { background:var(--danger); }
+.dl-state-done .dl-row-title { color:var(--muted); }
+.dl-state-done .dl-row-fill { background:#5a5a55; }
+.dl-state-paused .dl-row-fill { background:#888; }
+.dl-state-cancelled .dl-row-state { color:var(--muted); }
 .progress-info { flex:1; min-width:0; }
 .progress-title-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
 .progress-title { font:600 13px "DM Mono",monospace; color:var(--ink); }

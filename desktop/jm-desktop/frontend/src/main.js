@@ -12,6 +12,7 @@ const DISTROS = {
 };
 let activeKind = 'jdk';
 let activeDistro = 'openjdk';
+let activePage = 'main';
 let downloadQueue = [];
 let queueRunning = false;
 let currentTaskKey = '';
@@ -30,7 +31,8 @@ function render() {
         <aside class="sidebar">
             <div class="brand" aria-label="JM version manager"><span class="brand-mark">jm</span><span class="brand-name">version manager</span></div>
             <nav class="product-nav" aria-label="工具类型">
-                ${Object.entries(PRODUCTS).map(([kind, item]) => `<button class="nav-item ${kind === activeKind ? 'is-active' : ''}" data-kind="${kind}"><span class="nav-index">0${kind === 'jdk' ? '1' : '2'}</span><span><strong>${item.short}</strong><small>${item.command}</small></span><span class="nav-arrow">↗</span></button>`).join('')}
+                ${Object.entries(PRODUCTS).map(([kind, item]) => `<button class="nav-item ${kind === activeKind && activePage === 'main' ? 'is-active' : ''}" data-kind="${kind}"><span class="nav-index">0${kind === 'jdk' ? '1' : '2'}</span><span><strong>${item.short}</strong><small>${item.command}</small></span><span class="nav-arrow">↗</span></button>`).join('')}
+                <button class="nav-item ${activePage === 'downloads' ? 'is-active' : ''}" data-page="downloads"><span class="nav-index">03</span><span><strong>下载管理</strong><small>${activeDownloadCount()} 个任务</small></span><span class="nav-arrow">↗</span></button>
             </nav>
             <div class="sidebar-controls">
                 <div class="sidebar-foot"><span class="live-dot"></span><span>LOCAL ENVIRONMENT</span></div>
@@ -53,10 +55,11 @@ function render() {
                 <article class="section-card installed-card"><div class="section-heading"><div><p class="section-kicker">YOUR MACHINE</p><h2>已安装版本</h2></div><div class="section-actions"><button class="text-button" id="import-btn">导入目录</button><button class="icon-button" id="refresh-btn" aria-label="刷新已安装版本" title="刷新">↻</button></div></div><div class="version-list" id="installed-list"><div class="empty-state">正在读取本地版本…</div></div></article>
                 <article class="section-card discover-card"><div class="section-heading"><div><p class="section-kicker">REMOTE CATALOG</p><h2>发现新版本</h2></div></div><div class="search-box"><label for="search-input">版本号</label>${activeKind === 'jdk' ? '<label for="distro-select" style="margin-top:8px">JDK 发行版</label><select id="distro-select" class="settings-input" style="margin-bottom:8px"><option value="openjdk"' + (activeDistro === 'openjdk' ? ' selected' : '') + '>OpenJDK (Oracle)</option><option value="temurin"' + (activeDistro === 'temurin' ? ' selected' : '') + '>Temurin (Adoptium)</option><option value="zulu"' + (activeDistro === 'zulu' ? ' selected' : '') + '>Zulu (Azul)</option></select>' : ''}<div class="search-row"><input id="search-input" type="text" autocomplete="off" placeholder="例如 17、21 或 3.9" /><button class="button button-dark" id="search-btn">搜索 <span>→</span></button></div><p>留空可浏览全部可用版本</p></div><div class="results-label"><span>AVAILABLE</span><i></i></div><div class="search-results" id="search-results"><div class="empty-state">输入版本号以搜索远程目录。</div></div></article>
             </section>
-        </main>
-        <section class="download-dock" id="download-dock" hidden aria-live="polite" aria-label="下载任务"></section>`;
+        </main>`;
+    if (activePage === 'downloads') {
+        renderDownloadsPage();
+    }
     bindEvents();
-    renderDownloadQueue();
     loadRoot();
     loadInstalled();
     loadVersion();
@@ -64,7 +67,8 @@ function render() {
 }
 
 function bindEvents() {
-    document.querySelectorAll('[data-kind]').forEach((button) => button.addEventListener('click', () => { activeKind = button.dataset.kind; render(); }));
+    document.querySelectorAll('[data-kind]').forEach((button) => button.addEventListener('click', () => { activeKind = button.dataset.kind; activePage = 'main'; render(); }));
+    document.querySelectorAll('[data-page]').forEach((button) => button.addEventListener('click', () => { activePage = button.dataset.page; render(); }));
     document.querySelector('#refresh-btn').addEventListener('click', loadInstalled);
     document.querySelector('#import-btn').addEventListener('click', importInstallation);
     document.querySelector('#search-btn').addEventListener('click', doSearch);
@@ -264,46 +268,68 @@ function formatRate(rate) {
     return `${formatSize(rate)}/s`;
 }
 
-function renderDownloadQueue() {
-    const container = document.querySelector('#download-dock');
-    if (!container) return;
-    saveDownloadQueue();
-    const visible = downloadQueue.filter((task) => task.status !== 'done' && task.status !== 'cancelled');
-    container.hidden = visible.length === 0;
-    container.innerHTML = visible.map((task) => progressRow(task)).join('');
-    container.querySelectorAll('[data-queue-act]').forEach((button) => button.addEventListener('click', () => handleQueueAction(button.dataset.queueAct, button.dataset.queueKey)));
+function activeDownloadCount() {
+    return downloadQueue.filter((t) => t.status !== 'done' && t.status !== 'cancelled').length;
 }
 
-function progressRow(task) {
+function renderDownloadQueue() {
+    saveDownloadQueue();
+    // Re-render if on downloads page, otherwise just update sidebar badge
+    if (activePage === 'downloads') {
+        renderDownloadsPage();
+    } else {
+        // Update sidebar badge
+        const navSmall = document.querySelector('[data-page="downloads"] small');
+        if (navSmall) navSmall.textContent = activeDownloadCount() + ' 个任务';
+    }
+}
+
+function renderDownloadsPage() {
+    const workspace = document.querySelector('.workspace');
+    if (!workspace) return;
+    const allTasks = [...downloadQueue];
+    const activeTasks = allTasks.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
+    const finishedTasks = allTasks.filter((t) => t.status === 'done' || t.status === 'cancelled');
+    workspace.innerHTML = `
+        <header class="header"><div class="breadcrumb"><span>TOOLCHAIN</span><i></i><span>下载管理</span></div><button class="root-path" id="root-path" title="安装根目录">读取工作目录...</button></header>
+        <div style="padding-top:45px">
+            <div class="section-heading"><div><p class="section-kicker">DOWNLOAD MANAGER</p><h2>下载任务</h2></div><div class="section-actions">${activeTasks.length > 0 ? '<button class="text-button" id="clear-finished-btn">清除已完成</button>' : ''}</div></div>
+            ${allTasks.length === 0 ? '<div class="empty-state empty-large"><b>暂无下载任务</b><span>搜索版本后点击"加入队列"开始下载。</span></div>' : ''}
+            ${activeTasks.length > 0 ? '<div class="download-list" id="active-tasks">' + activeTasks.map((task) => downloadPageRow(task)).join('') + '</div>' : ''}
+            ${finishedTasks.length > 0 ? '<div class="results-label" style="margin-top:30px"><span>已完成</span><i></i></div><div class="download-list download-list-done" id="finished-tasks">' + finishedTasks.map((task) => downloadPageRow(task)).join('') + '</div>' : ''}
+        </div>`;
+    workspace.querySelectorAll('[data-queue-act]').forEach((button) => button.addEventListener('click', () => handleQueueAction(button.dataset.queueAct, button.dataset.queueKey)));
+    const clearBtn = workspace.querySelector('#clear-finished-btn');
+    if (clearBtn) clearBtn.addEventListener('click', () => {
+        downloadQueue = downloadQueue.filter((t) => t.status !== 'done' && t.status !== 'cancelled');
+        renderDownloadsPage();
+    });
+    loadRoot();
+}
+
+function downloadPageRow(task) {
     const { kind, version, done, total, rate, status, message } = task;
     const short = PRODUCTS[kind]?.short || kind;
     const distroLabel = DISTROS[task.distro] ? ' (' + DISTROS[task.distro].split(' ')[0] + ')' : '';
     const safeKey = escapeHTML(task.key);
     const safeVersion = escapeHTML(version);
     const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-    const stateText = status === 'error' ? '下载失败' : status === 'paused' ? '已暂停' : status === 'queued' ? '排队中' : '下载中';
-    const action = status === 'queued'
-        ? `<button class="progress-btn progress-btn-cancel" data-queue-act="remove" data-queue-key="${safeKey}">移除</button>`
-        : status === 'paused'
-            ? `<button class="progress-btn" data-queue-act="resume" data-queue-key="${safeKey}">继续</button><button class="progress-btn progress-btn-cancel" data-queue-act="cancel" data-queue-key="${safeKey}">取消</button>`
-            : status === 'error'
-                ? `<button class="progress-btn" data-queue-act="retry" data-queue-key="${safeKey}">重试</button><button class="progress-btn progress-btn-cancel" data-queue-act="remove" data-queue-key="${safeKey}">移除</button>`
-                : `<button class="progress-btn" data-queue-act="pause" data-queue-key="${safeKey}">暂停</button><button class="progress-btn progress-btn-cancel" data-queue-act="cancel" data-queue-key="${safeKey}">取消</button>`;
-    return `
-        <div class="progress-row" data-progress-key="${safeKey}">
-        <div class="progress-info">
-            <div class="progress-title-row">
-                <span class="progress-title">${short}${distroLabel} ${safeVersion}</span>
-                <span class="progress-percent">${status === 'queued' ? '—' : pct + '%'}</span>
-            </div>
-            <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
-            <div class="progress-meta">
-                <span>${stateText}</span>
-                <span>${formatSize(done)} / ${formatSize(total)}</span>
-                <span>${status === 'error' ? escapeHTML(message || '') : formatRate(rate)}</span>
-            </div>
-        </div>
-        <div class="progress-actions">${action}</div></div>`;
+    const stateMap = { downloading: '下载中', paused: '已暂停', queued: '排队中', error: '下载失败', done: '已完成', cancelled: '已取消' };
+    const stateText = stateMap[status] || status;
+    const stateClass = status === 'error' ? 'dl-state-error' : status === 'done' ? 'dl-state-done' : status === 'paused' ? 'dl-state-paused' : status === 'cancelled' ? 'dl-state-cancelled' : '';
+    let action = '';
+    if (status === 'queued') {
+        action = '<button class="progress-btn progress-btn-cancel" data-queue-act="remove" data-queue-key="' + safeKey + '">移除</button>';
+    } else if (status === 'downloading') {
+        action = '<button class="progress-btn" data-queue-act="pause" data-queue-key="' + safeKey + '">暂停</button><button class="progress-btn progress-btn-cancel" data-queue-act="cancel" data-queue-key="' + safeKey + '">取消</button>';
+    } else if (status === 'paused') {
+        action = '<button class="progress-btn" data-queue-act="resume" data-queue-key="' + safeKey + '">继续</button><button class="progress-btn progress-btn-cancel" data-queue-act="cancel" data-queue-key="' + safeKey + '">取消</button>';
+    } else if (status === 'error') {
+        action = '<button class="progress-btn" data-queue-act="retry" data-queue-key="' + safeKey + '">重试</button><button class="progress-btn progress-btn-cancel" data-queue-act="remove" data-queue-key="' + safeKey + '">移除</button>';
+    } else if (status === 'done' || status === 'cancelled') {
+        action = '<button class="progress-btn progress-btn-cancel" data-queue-act="remove" data-queue-key="' + safeKey + '">移除</button>';
+    }
+    return '<div class="dl-row ' + stateClass + '"><div class="dl-row-main"><div class="dl-row-info"><span class="dl-row-title">' + short + distroLabel + ' ' + safeVersion + '</span><span class="dl-row-state">' + stateText + '</span></div>' + (status === 'downloading' || status === 'paused' ? '<div class="dl-row-progress"><div class="dl-row-track"><div class="dl-row-fill" style="width:' + pct + '%"></div></div><div class="dl-row-meta"><span>' + pct + '%</span><span>' + formatSize(done) + ' / ' + formatSize(total) + '</span><span>' + formatRate(rate) + '</span></div></div>' : '<div class="dl-row-meta" style="margin-top:6px">' + (status === 'error' && message ? '<span style="color:var(--danger)">' + escapeHTML(message) + '</span>' : '<span>' + stateText + '</span>') + '</div>') + '</div><div class="dl-row-actions">' + action + '</div></div>';
 }
 
 function handleQueueAction(action, key) {
