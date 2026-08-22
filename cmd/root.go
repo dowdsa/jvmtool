@@ -114,7 +114,7 @@ func newToolGroup(name, kind kindString) *cobra.Command {
 		Long:  fmt.Sprintf("搜索、安装、切换与卸载 %s 版本。", name),
 	}
 	if kind == KindJDK {
-		group.PersistentFlags().String("distro", "temurin",
+		group.PersistentFlags().String("distro", "openjdk",
 			"JDK 发行版 (temurin, zulu, openjdk)")
 	}
 	group.AddCommand(

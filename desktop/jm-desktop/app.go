@@ -277,7 +277,7 @@ func (a *App) Install(kind, version string) InstallResult {
 		a.mu.Unlock()
 	}()
 
-	m := manager.NewManager(a.cfg, manager.Kind(kind))
+	m := manager.NewManagerForDistro(a.cfg, manager.Kind(kind), distro)
 	art, err := m.Resolve(ctx, version)
 	if err != nil {
 		return InstallResult{Status: "error", Message: err.Error()}

@@ -5,7 +5,13 @@ const PRODUCTS = {
     jdk: { label: 'OpenJDK (Temurin)', short: 'JDK', command: 'java' },
     maven: { label: 'Apache Maven', short: 'Maven', command: 'mvn' },
 };
+const DISTROS = {
+    openjdk: 'OpenJDK (Oracle)',
+    temurin: 'Temurin (Adoptium)',
+    zulu: 'Zulu (Azul)',
+};
 let activeKind = 'jdk';
+let activeDistro = 'openjdk';
 let downloadQueue = [];
 let queueRunning = false;
 let currentTaskKey = '';
@@ -45,7 +51,7 @@ function render() {
             </section>
             <section class="content-grid">
                 <article class="section-card installed-card"><div class="section-heading"><div><p class="section-kicker">YOUR MACHINE</p><h2>已安装版本</h2></div><div class="section-actions"><button class="text-button" id="import-btn">导入目录</button><button class="icon-button" id="refresh-btn" aria-label="刷新已安装版本" title="刷新">↻</button></div></div><div class="version-list" id="installed-list"><div class="empty-state">正在读取本地版本…</div></div></article>
-                <article class="section-card discover-card"><div class="section-heading"><div><p class="section-kicker">REMOTE CATALOG</p><h2>发现新版本</h2></div></div><div class="search-box"><label for="search-input">版本号</label><div class="search-row"><input id="search-input" type="text" autocomplete="off" placeholder="例如 17、21 或 3.9" /><button class="button button-dark" id="search-btn">搜索 <span>→</span></button></div><p>留空可浏览全部可用版本</p></div><div class="results-label"><span>AVAILABLE</span><i></i></div><div class="search-results" id="search-results"><div class="empty-state">输入版本号以搜索远程目录。</div></div></article>
+                <article class="section-card discover-card"><div class="section-heading"><div><p class="section-kicker">REMOTE CATALOG</p><h2>发现新版本</h2></div></div><div class="search-box"><label for="search-input">版本号</label>${activeKind === 'jdk' ? '<label for="distro-select" style="margin-top:8px">JDK 发行版</label><select id="distro-select" class="settings-input" style="margin-bottom:8px"><option value="openjdk"' + (activeDistro === 'openjdk' ? ' selected' : '') + '>OpenJDK (Oracle)</option><option value="temurin"' + (activeDistro === 'temurin' ? ' selected' : '') + '>Temurin (Adoptium)</option><option value="zulu"' + (activeDistro === 'zulu' ? ' selected' : '') + '>Zulu (Azul)</option></select>' : ''}<div class="search-row"><input id="search-input" type="text" autocomplete="off" placeholder="例如 17、21 或 3.9" /><button class="button button-dark" id="search-btn">搜索 <span>→</span></button></div><p>留空可浏览全部可用版本</p></div><div class="results-label"><span>AVAILABLE</span><i></i></div><div class="search-results" id="search-results"><div class="empty-state">输入版本号以搜索远程目录。</div></div></article>
             </section>
         </main>
         <section class="download-dock" id="download-dock" hidden aria-live="polite" aria-label="下载任务"></section>`;
@@ -129,17 +135,25 @@ function updateOverview(list) {
     document.querySelector('#current-command').textContent = `${product.command} ${current ? current.version : '—'}`;
 }
 
+function getActiveDistro() {
+    const sel = document.querySelector('#distro-select');
+    if (sel) return sel.value;
+    return 'openjdk';
+}
+
 async function doSearch() {
     const kind = activeKind;
     const query = document.querySelector('#search-input').value.trim();
+    const distro = getActiveDistro();
+    activeDistro = distro;
     const container = document.querySelector('#search-results');
     container.innerHTML = '<div class="empty-state"><span class="loader"></span>正在搜索远程目录…</div>';
     try {
-        const versions = await App.Search(kind, query);
+        const versions = await App.Search(kind, query, distro);
         if (kind !== activeKind) return;
         if (!versions || versions.length === 0) { container.innerHTML = '<div class="empty-state">没有找到匹配版本。</div>'; return; }
         container.innerHTML = versions.map((version) => { const safeVersion = escapeHTML(version); return `<div class="result-row"><code>${safeVersion}</code><button class="install-button" data-install="${safeVersion}">加入队列 <span>+</span></button></div>`; }).join('');
-        container.querySelectorAll('[data-install]').forEach((button) => button.addEventListener('click', () => enqueueInstall(kind, button.dataset.install)));
+        container.querySelectorAll('[data-install]').forEach((button) => button.addEventListener('click', () => enqueueInstall(kind, button.dataset.install, distro)));
     } catch (error) { container.innerHTML = `<div class="empty-state error-state">搜索失败：${escapeHTML(error)}</div>`; }
 }
 
@@ -167,10 +181,10 @@ async function importInstallation() {
 function taskKey(kind, version) { return `${kind}:${version}`; }
 function getTask(key) { return downloadQueue.find((task) => task.key === key); }
 
-function enqueueInstall(kind, version) {
+function enqueueInstall(kind, version, distro) {
     const key = taskKey(kind, version);
     if (getTask(key)) { toast(`${version} 已在下载队列中`); return; }
-    downloadQueue.push({ key, kind, version, status: 'queued', done: 0, total: 0, rate: 0 });
+    downloadQueue.push({ key, kind, version, distro: distro || 'openjdk', status: 'queued', done: 0, total: 0, rate: 0 });
     renderDownloadQueue();
     runNextDownload();
 }
@@ -203,7 +217,7 @@ async function runNextDownload() {
     task.status = 'downloading';
     renderDownloadQueue();
     try {
-        const result = await App.Install(task.kind, task.version);
+        const result = await App.Install(task.kind, task.version, task.distro || 'openjdk');
         const status = result && result.status;
         const message = (result && result.message) || '未知错误';
         if (status === 'ok') {
@@ -263,6 +277,7 @@ function renderDownloadQueue() {
 function progressRow(task) {
     const { kind, version, done, total, rate, status, message } = task;
     const short = PRODUCTS[kind]?.short || kind;
+    const distroLabel = DISTROS[task.distro] ? ' (' + DISTROS[task.distro].split(' ')[0] + ')' : '';
     const safeKey = escapeHTML(task.key);
     const safeVersion = escapeHTML(version);
     const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
@@ -278,7 +293,7 @@ function progressRow(task) {
         <div class="progress-row" data-progress-key="${safeKey}">
         <div class="progress-info">
             <div class="progress-title-row">
-                <span class="progress-title">${short} ${safeVersion}</span>
+                <span class="progress-title">${short}${distroLabel} ${safeVersion}</span>
                 <span class="progress-percent">${status === 'queued' ? '—' : pct + '%'}</span>
             </div>
             <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
