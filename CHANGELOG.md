@@ -5,6 +5,72 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.5.4] - 2026-08-21
+
+### 新增
+
+- 桌面端支持最小化到系统托盘：关闭窗口时隐藏到托盘而非退出，右键菜单可显示窗口或退出
+- 桌面端关闭时弹出确认对话框：可选"后台运行"或"退出应用"，含"不再提示"复选框
+- 设置面板新增"关闭窗口行为"选项：每次询问 / 最小化到后台 / 直接退出
+- 新增 `jm status` 命令：一条命令查看 JDK、Maven 当前版本、安装数量和缓存占用
+- 新增 `jm jdk info <ver>` / `jm maven info <ver>` 命令：查看版本大小、校验和、下载链接、镜像源
+- 新增 `.jvmtoolrc` 项目级版本切换：在项目目录放置配置文件，`jm use` 无参数即可自动读取并切换
+- `jm jdk use` / `jm maven use` 支持无参数模式，自动从 `.jvmtoolrc` 读取版本
+- 卸载当前版本时自动回退到剩余的最新版本，避免 `java`/`mvn` 命令失效
+- 新增 `--distro` 参数支持 Zulu (Azul) JDK 发行版（`jm jdk search/install/info --distro zulu`）
+
+### 安全性
+
+- **Zip/Tar Bomb 防护**：解压时累计字节数，超过 2GB 立即中断，防止恶意压缩包耗尽磁盘
+- **空校验和绕过修复**：`VerifySHA256`/`VerifySHA512` 空值返回 false（此前返回 true），拒绝无校验和安装
+- **HTTP 响应体限制**：所有 `io.ReadAll` 加 `io.LimitReader` 防护 OOM（API 响应限制 10MB）
+- **文件锁 PID 验证**：检查锁文件持有者进程是否存活，及时清理残留锁
+- **Shell 注入防护**：`env.go Block()` 用单引号包裹路径，`install.sh` 拒绝含特殊字符的路径
+- **Windows TOCTOU 修复**：更新脚本用 `crypto/rand` 生成不可预测文件名
+- **SOCKS5 降级攻击修复**：配置凭据时仅提供 user/pass 认证方法，不接受 no-auth 降级
+
+### 优化
+
+- 统一重复代码：`humanSize` 导出为 `download.HumanSize`，版本比较统一为 `version.CompareVersions`
+- 删除未使用的 `plusRe` 死代码
+- HTTP Client 缓存复用连接，代理变更时自动重建
+- `matchInstalled` 精确化匹配，防止 `jm jdk use 1` 静默选中 11
+- `resolveExactVersion` 传 `limit=1`，减少不必要的 API 分页
+- Gitee 同步工作流超时从 30 分钟增加到 120 分钟
+- 移除 `.pi` 目录版本控制跟踪
+
+### 修复
+
+- 桌面端导入目录报错 `OpenFileDialog is not a function`：改用 `OpenDirectoryDialog`
+- 设置面板文字"开机自动启动桌面端"改为"开机自启动"
+
+## [0.5.3] - 2026-08-20
+
+### 修复
+
+- 桌面端导入目录报错 `OpenFileDialog is not a function`：Wails v2 中选目录应用 `OpenDirectoryDialog`，`OpenFileDialog` 是选文件的
+- 对话框取消与导入失败分开处理，取消选择时不再误报"导入失败"
+
+## [0.5.2] - 2026-08-18
+
+### 新增
+
+- `jm status` 命令：一条命令查看 JDK、Maven 当前版本、安装数量和缓存占用
+- `jm jdk info <ver>` / `jm maven info <ver>` 命令：查看版本大小、校验和、下载链接、镜像源
+- `.jvmtoolrc` 项目级版本切换：在项目目录放置 `jdk=17` / `maven=3.9.11`，`jm use` 无参数自动读取
+- `jm jdk use` / `jm maven use` 支持无参数模式，从 `.jvmtoolrc` 读取版本
+- 卸载当前版本时自动回退到剩余的最新版本
+- `--distro` 参数支持 Zulu (Azul) JDK 发行版
+
+### 优化
+
+- 统一重复代码：`humanSize` 导出为 `download.HumanSize`，版本比较统一为 `version.CompareVersions`
+- 删除未使用的 `plusRe` 死代码
+- HTTP Client 缓存复用连接，代理变更时自动重建
+- `matchInstalled` 精确化匹配（三级优先级），防止歧义前缀静默命中
+- `resolveExactVersion` 传 `limit=1`，减少不必要的 API 分页请求
+- 文件锁增加 stale 检测（5 分钟阈值），自动清理残留锁文件
+
 ## [0.5.1] - 2026-08-18
 
 ### 修复
