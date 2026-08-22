@@ -223,6 +223,18 @@ func (a *App) Import(kind, sourcePath, version string) (string, error) {
 	return m.Import(sourcePath, version)
 }
 
+// SelectDirectory opens a native directory picker dialog and returns the
+// selected path. Returns "" if the user cancels.
+func (a *App) SelectDirectory(title string) (string, error) {
+	dir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: title,
+	})
+	if err != nil {
+		return "", nil // user cancelled
+	}
+	return dir, nil
+}
+
 // InstallProgress is emitted to the frontend during download.
 type InstallProgress struct {
 	Kind    string `json:"kind"`

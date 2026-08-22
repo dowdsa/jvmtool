@@ -148,11 +148,9 @@ async function doUninstall(version) { if (!confirm(`确定要卸载 ${PRODUCTS[a
 async function importInstallation() {
     let source;
     try {
-        source = await window.runtime.OpenDirectoryDialog({
-            Title: `选择要导入的 ${PRODUCTS[activeKind].short} 目录`,
-        });
+        source = await App.SelectDirectory(`选择要导入的 ${PRODUCTS[activeKind].short} 目录`);
     } catch (e) {
-        console.error('OpenDirectoryDialog failed:', e);
+        console.error('SelectDirectory failed:', e);
         toast(`打开目录选择器失败：${e}`, true);
         return;
     }
@@ -469,15 +467,15 @@ function showCloseDialog() {
             <div class="settings-body">
                 <p style="margin:0;color:var(--text-secondary,#94a3b8)">关闭窗口后，jm 可以在后台继续运行，方便下次快速使用。</p>
             </div>
-            <div class="settings-foot update-foot" style="flex-direction:column;gap:12px">
-                <div class="update-actions" style="justify-content:flex-end;gap:8px">
-                    <button class="update-cancel" id="close-quit-btn">退出应用</button>
-                    <button class="button button-dark" id="close-tray-btn">后台运行</button>
-                </div>
-                <label class="settings-check" style="align-self:flex-start;margin:0">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 24px 20px">
+                <label class="settings-check" style="margin:0">
                     <input id="close-remember" type="checkbox" />
                     <span>不再提示，记住我的选择</span>
                 </label>
+                <div style="display:flex;gap:8px">
+                    <button class="update-cancel" id="close-quit-btn">退出应用</button>
+                    <button class="button button-dark" id="close-tray-btn">后台运行</button>
+                </div>
             </div>
         </div>`;
     document.body.appendChild(overlay);
