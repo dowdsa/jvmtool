@@ -416,21 +416,25 @@ func (m *Manager) Uninstall(versionArg string) (string, string, error) {
 	}
 
 	if err := os.RemoveAll(m.installPath(exact)); err != nil {
+		if wasCurrent {
+			m.cleanupEnv(exact)
+		}
 		return "", "", err
 	}
-	// Remove only cache archives belonging to the uninstalled version. Other
-	// versions may still need their partial downloads for resume support.
 	_ = m.removeVersionCache(exact)
 
-	// Fallback: if the uninstalled version was current, switch to the
-	// newest remaining version so java/mvn commands keep working.
 	var fallback string
 	if wasCurrent {
 		fallback = m.newestRemaining(installed, exact)
 		if fallback != "" {
 			if _, uerr := m.Use(fallback); uerr != nil {
-				// Use failed; fall through to manual cleanup.
 				fallback = ""
+				m.cleanupEnv(exact)
+				m.cleanupEnv(fallback)
+			}
+		} else {
+			if env.IsWindows() {
+				_ = env.RemovePathEntry(filepath.Join(m.installPath(exact), "bin"))
 			}
 		}
 		if fallback == "" {

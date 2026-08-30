@@ -79,7 +79,9 @@ func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]strin
 	q.Set("java_package_type", "jdk")
 	q.Set("javafx_bundled", "false")
 	q.Set("release_status", "ga")
-	// Azul API does not support pagination; it returns all matching results
+	// Azul API does not support pagination; it returns all matching results.
+	// When no query is given, request only latest packages to avoid huge responses.
+	q.Set("latest", "true")
 	if query != "" {
 		// API expects array format: java_version=[8] or java_version=[17]
 		q.Set("java_version", "["+NormalizeJDKVersion(query)+"]")
@@ -160,15 +162,20 @@ func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, er
 	if err := json.Unmarshal(body, &pkgs); err != nil {
 		return nil, err
 	}
-	// Find the best (latest GA) match.
+	// Find the best match: prefer Latest=true, otherwise take the first GA.
 	var best *zuluPackage
 	for i := range pkgs {
 		p := &pkgs[i]
 		if p.ReleaseStatus != "ga" {
 			continue
 		}
-		if best == nil || p.Latest {
+		if best == nil {
 			best = p
+		}
+		// Prefer a package marked Latest=true; once found, keep it.
+		if p.Latest {
+			best = p
+			break
 		}
 	}
 	if best == nil {

@@ -96,7 +96,7 @@ func (d *Downloader) Download(ctx context.Context, url, path string, cb Progress
 		if done == 0 {
 			flags |= os.O_TRUNC // server restarted: drop any stale tail
 		}
-		f, err := os.OpenFile(path, flags, 0o644)
+		f, err := os.OpenFile(path, flags, 0o600)
 		if err != nil {
 			resp.Body.Close()
 			return err

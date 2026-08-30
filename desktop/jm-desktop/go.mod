@@ -1,6 +1,6 @@
 module jm-desktop
 
-go 1.25.13
+go 1.25
 
 require (
 	github.com/getlantern/systray v1.2.1

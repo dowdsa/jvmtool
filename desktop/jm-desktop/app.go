@@ -230,7 +230,11 @@ func (a *App) SelectDirectory(title string) (string, error) {
 		Title: title,
 	})
 	if err != nil {
-		return "", nil // user cancelled
+		// Distinguish cancellation (empty dir, no error) from real errors.
+		if dir == "" {
+			return "", nil // user cancelled
+		}
+		return "", fmt.Errorf("打开目录选择器失败: %w", err)
 	}
 	return dir, nil
 }
