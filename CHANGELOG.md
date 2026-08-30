@@ -5,7 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [0.5.6] - 2026-08-22
+## [0.6.1] - 2026-08-22
+
+### 修复
+
+- **Temurin 搜索不到老版本**：搜索分页阈值从 10 页增至 30 页，JDK 8 等老版本在 API 中排列靠后，10 页（200 条）不足以覆盖
+- **Zulu 搜索返回空**：修正 API 参数，提取主版本号传给 API（`8u431` → `[8]`，`17.0.13` → `[17]`），新增 `zuluVersionMatches` 本地过滤确保结果匹配
+
+## [0.6.0] - 2026-08-22
 
 ### 新增
 
