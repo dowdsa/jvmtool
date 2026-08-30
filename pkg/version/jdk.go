@@ -131,7 +131,7 @@ func (s *JDKSource) List(ctx context.Context, query string, limit int) ([]string
 		// stop when a page has no matches for several pages
 		// Increase threshold for older version searches (e.g., searching "8" needs
 		// to skip many pages of newer versions before finding JDK 8)
-		if pageMatch == 0 && page > 10 {
+		if pageMatch == 0 && page > 30 {
 			break
 		}
 		if len(rr.Releases) < 20 {

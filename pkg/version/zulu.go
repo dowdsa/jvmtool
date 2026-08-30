@@ -79,12 +79,15 @@ func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]strin
 	q.Set("java_package_type", "jdk")
 	q.Set("javafx_bundled", "false")
 	q.Set("release_status", "ga")
-	// Azul API does not support pagination; it returns all matching results.
-	// When no query is given, request only latest packages to avoid huge responses.
 	q.Set("latest", "true")
 	if query != "" {
 		// API expects array format: java_version=[8] or java_version=[17]
-		q.Set("java_version", "["+NormalizeJDKVersion(query)+"]")
+		// For JDK 8, query is already normalized to e.g. "8", "8u431" etc.
+		// Extract just the major version number for the API filter.
+		majorVer := extractMajorVersion(NormalizeJDKVersion(query))
+		if majorVer != "" {
+			q.Set("java_version", "["+majorVer+"]")
+		}
 	}
 	u.RawQuery = q.Encode()
 
@@ -100,7 +103,7 @@ func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]strin
 		resp.Body.Close()
 		return nil, fmt.Errorf("zulu api returned %s", resp.Status)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	resp.Body.Close()
 	if err != nil {
 		return nil, err
@@ -117,6 +120,11 @@ func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]strin
 			continue
 		}
 		v := zuluVersionString(pkg)
+		// When a query is given, filter results locally too
+		// (e.g., query "8" should match "8.0.504")
+		if query != "" && !zuluVersionMatches(v, query) {
+			continue
+		}
 		if !seen[v] {
 			seen[v] = true
 			out = append(out, v)
@@ -138,8 +146,11 @@ func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, er
 	q.Set("java_package_type", "jdk")
 	q.Set("javafx_bundled", "false")
 	q.Set("release_status", "ga")
-	// API expects array format: java_version=[17]
-	q.Set("java_version", "["+version+"]")
+	// Extract major version for API filter
+	majorVer := extractMajorVersion(version)
+	if majorVer != "" {
+		q.Set("java_version", "["+majorVer+"]")
+	}
 	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -154,7 +165,7 @@ func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, er
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("zulu api returned %s", resp.Status)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
 	if err != nil {
 		return nil, err
 	}
@@ -198,6 +209,30 @@ func zuluVersionString(pkg zuluPackage) string {
 		parts = append(parts, strconv.Itoa(n))
 	}
 	return strings.Join(parts, ".")
+}
+
+// extractMajorVersion extracts the major version number from a version string.
+// "17" -> "17", "17.0.13" -> "17", "8u431" -> "8", "8.0.504" -> "8".
+func extractMajorVersion(version string) string {
+	if strings.HasPrefix(version, "8u") {
+		return "8"
+	}
+	parts := strings.SplitN(version, ".", 2)
+	return parts[0]
+}
+
+// zuluVersionMatches checks if a Zulu version (e.g. "8.0.504") matches a query.
+// Query "8" matches "8.0.504"; query "17" matches "17.0.20".
+func zuluVersionMatches(version, query string) bool {
+	if version == query {
+		return true
+	}
+	majorVer := extractMajorVersion(version)
+	queryMajor := extractMajorVersion(query)
+	if majorVer != "" && majorVer == queryMajor {
+		return true
+	}
+	return strings.HasPrefix(version, query+".")
 }
 
 // zuluArchiveType returns the archive format for the current platform.
