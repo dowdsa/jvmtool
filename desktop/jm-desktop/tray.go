@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -16,8 +15,6 @@ import (
 var trayIconBytes []byte
 
 // setupTray launches the system tray in a background goroutine.
-// systray.Run() initialises the native message loop on a dedicated thread,
-// then calls onReady (on the same thread) to set up the icon and menu.
 func setupTray() {
 	go func() {
 		defer func() {
@@ -31,7 +28,6 @@ func setupTray() {
 }
 
 // trayOnReady runs on the systray thread after the native loop starts.
-// It sets up the icon, title, and menu items.
 func trayOnReady() {
 	systray.SetIcon(trayIconBytes)
 	systray.SetTitle("jm")
@@ -41,8 +37,6 @@ func trayOnReady() {
 	systray.AddSeparator()
 	mQuit := systray.AddMenuItem("退出", "退出 jm")
 
-	// Block here to process menu events. This goroutine is already locked
-	// to its OS thread by systray.Run(), so Wails calls are safe.
 	for {
 		select {
 		case <-mShow.ClickedCh:
@@ -68,22 +62,99 @@ func cleanupTray() {
 	systray.Quit()
 }
 
-// generateTrayIcon builds a 16×16 blue square PNG at startup.
-// Replace with a real .ico/.png for production use.
+// generateTrayIcon builds a 64×64 icon with dark background and "jm" lettermark.
+// Windows system tray requires at least 32×32; 64×64 ensures clarity on HiDPI.
 func generateTrayIcon() []byte {
-	const size = 16
+	const size = 64
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	c := color.RGBA{R: 59, G: 130, B: 246, A: 255}
+
+	// Dark background matching app theme (#101010)
+	bg := color.RGBA{R: 16, G: 16, B: 16, A: 255}
+	fg := color.RGBA{R: 245, G: 245, B: 241, A: 255}    // off-white
+	accent := color.RGBA{R: 59, G: 130, B: 246, A: 255} // blue
+
+	// Fill background
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
-			img.Set(x, y, c)
+			img.Set(x, y, bg)
 		}
 	}
+
+	// Draw rounded corners (radius 14)
+	roundTrayCorners(img, 14)
+
+	// Draw "j" letter
+	// Vertical stem
+	fillRect(img, 14, 18, 24, 44, fg)
+	// Dot above
+	fillRect(img, 16, 10, 22, 15, fg)
+	// Bottom hook (curve left)
+	fillRect(img, 10, 40, 14, 50, fg)
+
+	// Draw "m" letter
+	// Left vertical
+	fillRect(img, 28, 22, 35, 50, fg)
+	// Middle vertical
+	fillRect(img, 38, 22, 45, 50, fg)
+	// Right vertical
+	fillRect(img, 48, 22, 55, 50, fg)
+	// Left arch
+	fillRect(img, 35, 18, 38, 26, fg)
+	// Right arch
+	fillRect(img, 45, 18, 48, 26, fg)
+
+	// Blue accent bar at bottom
+	fillRect(img, 10, 54, 54, 58, accent)
+
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
 		log.Printf("tray: failed to encode icon: %v", err)
 		return nil
 	}
-	fmt.Printf("tray: generated %d-byte icon\n", buf.Len())
 	return buf.Bytes()
+}
+
+func fillRect(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {
+	for y := y1; y < y2; y++ {
+		for x := x1; x < x2; x++ {
+			img.Set(x, y, c)
+		}
+	}
+}
+
+// roundTrayCorners clears the corners to make the icon rounded.
+func roundTrayCorners(img *image.RGBA, r int) {
+	size := img.Bounds().Max.X
+	transparent := color.RGBA{A: 0}
+	corners := [][2]int{
+		{r, r},                       // top-left center
+		{size - r - 1, r},            // top-right center
+		{r, size - r - 1},            // bottom-left center
+		{size - r - 1, size - r - 1}, // bottom-right center
+	}
+	for _, c := range corners {
+		cx, cy := c[0], c[1]
+		for y := 0; y < size; y++ {
+			for x := 0; x < size; x++ {
+				// Only check pixels in this corner's quadrant
+				inCorner := false
+				if cx == r && cy == r && x <= r && y <= r {
+					inCorner = true
+				} else if cx > r && cy == r && x >= cx && y <= r {
+					inCorner = true
+				} else if cx == r && cy > r && x <= r && y >= cy {
+					inCorner = true
+				} else if cx > r && cy > r && x >= cx && y >= cy {
+					inCorner = true
+				}
+				if inCorner {
+					dx := float64(x - cx)
+					dy := float64(y - cy)
+					if dx*dx+dy*dy > float64(r*r) {
+						img.Set(x, y, transparent)
+					}
+				}
+			}
+		}
+	}
 }
