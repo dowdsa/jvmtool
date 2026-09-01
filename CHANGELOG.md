@@ -11,6 +11,8 @@
 
 - **桌面端不勾选"不再提示"无法退出**：Wails 的 `runtime.Quit` 内部会重新执行 `OnBeforeClose`，在"每次询问"模式下会再次弹出确认框并取消退出——表现为必须勾选"不再提示"（持久化为"直接退出"）才能退出。现通过 `App.RequestQuit` 中的显式退出标志绕过该重入检查；不勾选时立即退出，且每次关闭仍会询问。托盘菜单的"退出"项存在同样问题，一并修复
 - **Windows 托盘图标空白**：`getlantern/systray` 在 Windows 上通过 `LoadImage(IMAGE_ICON|LR_LOADFROMFILE)` 加载图标文件，该 API 只支持 .ico 格式，此前传入 PNG 导致加载失败。现把生成的 PNG 包装为标准 ICO 容器（PNG 压缩条目，Vista+ 原生支持），并新增单元测试校验 ICO 结构
+- **安装器报 "Error opening file for writing"**：旧版本驻留后台（托盘）时锁住 exe，导致安装/卸载无法覆盖文件。安装与卸载前现在会自动结束正在运行的 jm-desktop 进程再继续
+- **单实例保护**：重复启动 jm-desktop 不再开出第二个进程，而是唤起已运行的主窗口
 
 ### 构建
 

@@ -90,6 +90,8 @@ Resolve → 文件锁 → 下载到 cache（**镜像优先**：TUNA Adoptium 镜
 - **`getlantern/systray` 在 Windows 上只认 .ico**：内部把字节写临时文件后用 `LoadImage(IMAGE_ICON|LR_LOADFROMFILE)` 加载，传 PNG 会静默失败 → 托盘图标空白。`tray.go pngToICO` 把 PNG 包成 ICO 容器（PNG 压缩条目 Vista+ 可用），有 `tray_test.go` 防回归
 - 桌面端 `go.mod` 的 go 指令必须是 `go 1.25.0` 与主模块一致——写 `go 1.25` 时因 `replace jm => ../..` 版本不匹配，`go build` 直接报 "updates to go.mod needed"
 - 本地（非 wails）交叉编译桌面端需 `frontend/dist` 存在（`go:embed all:frontend/dist`），dist 是 gitignore 的构建产物，`wails build` 会自动生成；临时桩用后应删除
+- 桌面端有单实例保护（`main.go SingleInstanceLock`，UniqueId `dowdsa.jvmtool.jm-desktop`）：第二个进程通知主实例唤起窗口后自动退出
+- NSIS 安装/卸载前会 `taskkill /f /im jm-desktop.exe`（`project.nsi` 的 `killRunningInstance` 宏）——否则托盘驻留的旧实例锁住 exe，安装器报 "Error opening file for writing"
 - 桌面端托盘用 `nicehash/systray`？**不对，实际用的是 `getlantern/systray` v1.2.1**（旧记忆有误）；必须先 `systray.Run()` 初始化再 SetIcon，直接 SetIcon 会 panic（v0.5.5 踩过）
 - Wails 选目录 API 是 `OpenDirectoryDialog`（`OpenFileDialog` 是选文件的，v0.5.3 踩过）
 - Maven metadata 每次 List/Resolve 都重新请求（可加 5 分钟内存缓存，已知 TODO）
