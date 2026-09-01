@@ -168,6 +168,14 @@ jobs:
             echo "CHANGELOG section not found for ${VER}" > release-notes.md
           fi
 
+      # Re-releasing a tag (delete + re-push) must produce a fresh release:
+      # action-gh-release updates assets of an existing release but keeps the
+      # old body, so remove the stale one and let the step below recreate it.
+      - name: Remove stale release
+        run: gh release delete "${GITHUB_REF_NAME}" --yes || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
