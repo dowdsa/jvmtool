@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
 	"image/color"
 	"image/png"
@@ -44,8 +45,9 @@ func trayOnReady() {
 			wailsruntime.WindowSetAlwaysOnTop(app.ctx, true)
 			wailsruntime.WindowSetAlwaysOnTop(app.ctx, false)
 		case <-mQuit.ClickedCh:
-			systray.Quit()
-			wailsruntime.Quit(app.ctx)
+			// RequestQuit sets quitPending so the quit is not cancelled by
+			// OnBeforeClose re-running in "ask" mode.
+			app.RequestQuit()
 			return
 		}
 	}
@@ -62,8 +64,9 @@ func cleanupTray() {
 	systray.Quit()
 }
 
-// generateTrayIcon builds a 64×64 icon with dark background and "jm" lettermark.
-// Windows system tray requires at least 32×32; 64×64 ensures clarity on HiDPI.
+// generateTrayIcon builds a 64×64 icon with dark background and "jm" lettermark,
+// returned as ICO bytes. Windows system tray requires at least 32×32; 64×64
+// ensures clarity on HiDPI.
 func generateTrayIcon() []byte {
 	const size = 64
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
@@ -106,12 +109,34 @@ func generateTrayIcon() []byte {
 	// Blue accent bar at bottom
 	fillRect(img, 10, 54, 54, 58, accent)
 
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
+	var pngBuf bytes.Buffer
+	if err := png.Encode(&pngBuf, img); err != nil {
 		log.Printf("tray: failed to encode icon: %v", err)
 		return nil
 	}
-	return buf.Bytes()
+	// getlantern/systray writes the bytes to a temp file and loads it via
+	// LoadImage(IMAGE_ICON|LR_LOADFROMFILE), which only reads .ico files —
+	// raw PNG leaves a blank tray icon on Windows.
+	return pngToICO(pngBuf.Bytes(), size)
+}
+
+// pngToICO wraps a single PNG image in a minimal ICO container. PNG-compressed
+// ICO entries are supported since Windows Vista, so no re-encoding is needed.
+func pngToICO(png []byte, size int) []byte {
+	var out bytes.Buffer
+	binary.Write(&out, binary.LittleEndian, uint16(0))  // reserved
+	binary.Write(&out, binary.LittleEndian, uint16(1))  // type: icon
+	binary.Write(&out, binary.LittleEndian, uint16(1))  // entry count
+	out.WriteByte(byte(size))                           // width (0 means 256)
+	out.WriteByte(byte(size))                           // height
+	out.WriteByte(0)                                    // palette size
+	out.WriteByte(0)                                    // reserved
+	binary.Write(&out, binary.LittleEndian, uint16(1))  // color planes
+	binary.Write(&out, binary.LittleEndian, uint16(32)) // bits per pixel
+	binary.Write(&out, binary.LittleEndian, uint32(len(png)))
+	binary.Write(&out, binary.LittleEndian, uint32(22)) // data offset (6+16)
+	out.Write(png)
+	return out.Bytes()
 }
 
 func fillRect(img *image.RGBA, x1, y1, x2, y2 int, c color.RGBA) {

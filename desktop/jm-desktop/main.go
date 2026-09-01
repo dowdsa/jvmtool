@@ -56,6 +56,9 @@ func main() {
 			setupTray()
 		},
 		OnBeforeClose: func(ctx context.Context) bool {
+			if app.quitPending.Load() {
+				return false // explicit quit (dialog / tray menu), allow close
+			}
 			switch app.cfg.GetCloseAction() {
 			case "tray":
 				wailsruntime.WindowHide(app.ctx)

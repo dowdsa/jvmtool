@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	goruntime "runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -29,6 +30,10 @@ type App struct {
 	currentCache string
 	stopMode     string    // "pause" | "cancel" — how the current download was stopped
 	lastEmit     time.Time // throttle install:progress events
+	// quitPending marks an explicit quit (ConfirmClose / tray menu). Wails'
+	// runtime.Quit re-runs OnBeforeClose, which in "ask" mode would re-open
+	// the close dialog and cancel the quit; this flag short-circuits that.
+	quitPending atomic.Bool
 }
 
 // NewApp creates a new App application struct
@@ -139,6 +144,15 @@ func (a *App) SetCloseBehavior(behavior string) error {
 	return a.cfg.SetCloseAction(behavior)
 }
 
+// RequestQuit quits the app unconditionally, bypassing the close dialog.
+// cleanupTray is idempotent (recovers internally), so calling it here and
+// again from OnShutdown is safe.
+func (a *App) RequestQuit() {
+	a.quitPending.Store(true)
+	cleanupTray()
+	runtime.Quit(a.ctx)
+}
+
 // ConfirmClose is called from the frontend after the close confirmation dialog.
 // hide=true means "hide to tray", hide=false means "quit app".
 // remember=true saves the choice so the dialog is not shown again.
@@ -153,8 +167,7 @@ func (a *App) ConfirmClose(hide, remember bool) {
 	if hide {
 		runtime.WindowHide(a.ctx)
 	} else {
-		cleanupTray()
-		runtime.Quit(a.ctx)
+		a.RequestQuit()
 	}
 }
 
