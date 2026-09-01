@@ -5,6 +5,17 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.6.2] - 2026-09-01
+
+### 修复
+
+- **桌面端不勾选"不再提示"无法退出**：Wails 的 `runtime.Quit` 内部会重新执行 `OnBeforeClose`，在"每次询问"模式下会再次弹出确认框并取消退出——表现为必须勾选"不再提示"（持久化为"直接退出"）才能退出。现通过 `App.RequestQuit` 中的显式退出标志绕过该重入检查；不勾选时立即退出，且每次关闭仍会询问。托盘菜单的"退出"项存在同样问题，一并修复
+- **Windows 托盘图标空白**：`getlantern/systray` 在 Windows 上通过 `LoadImage(IMAGE_ICON|LR_LOADFROMFILE)` 加载图标文件，该 API 只支持 .ico 格式，此前传入 PNG 导致加载失败。现把生成的 PNG 包装为标准 ICO 容器（PNG 压缩条目，Vista+ 原生支持），并新增单元测试校验 ICO 结构
+
+### 构建
+
+- 桌面端 `go.mod` 的 `go 1.25` 改为 `go 1.25.0`，与主模块 `replace jm` 声明的版本对齐（不一致时 `go build` 直接拒绝构建）
+
 ## [0.6.1] - 2026-08-22
 
 ### 修复
