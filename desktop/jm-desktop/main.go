@@ -73,6 +73,15 @@ func main() {
 		OnShutdown: func(ctx context.Context) {
 			cleanupTray()
 		},
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "dowdsa.jvmtool.jm-desktop",
+			// A second launch just brings the running window to the front;
+			// the second process exits after notifying us.
+			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				wailsruntime.WindowUnminimise(app.ctx)
+				wailsruntime.WindowShow(app.ctx)
+			},
+		},
 		Bind: []interface{}{
 			app,
 		},

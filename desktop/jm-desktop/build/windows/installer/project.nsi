@@ -87,7 +87,18 @@ Function .onInit
    !insertmacro wails.checkArchitecture
 FunctionEnd
 
+# Close a running instance so the executable can be overwritten / deleted.
+# Without this, an instance left in the tray locks the exe and the installer
+# fails with "Error opening file for writing".
+!macro killRunningInstance
+    nsExec::Exec 'taskkill /f /im "${PRODUCT_EXECUTABLE}"'
+    Pop $0
+    Sleep 1000
+!macroend
+
 Section
+    !insertmacro killRunningInstance
+
     !insertmacro wails.setShellContext
 
     !insertmacro wails.webview2runtime
@@ -106,6 +117,8 @@ Section
 SectionEnd
 
 Section "uninstall"
+    !insertmacro killRunningInstance
+
     !insertmacro wails.setShellContext
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
