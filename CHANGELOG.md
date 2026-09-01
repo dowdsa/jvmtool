@@ -5,6 +5,12 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.6.3] - 2026-09-01
+
+### 修复
+
+- **升级时安装器不再要求重新选择安装路径**：Wails 生成的 NSIS 脚本只写静态默认目录，每次升级都会回到默认路径。现安装完成时把实际安装目录写入注册表卸载键的 `InstallLocation` 字段，下次安装/升级时自动预选该目录；对已安装的旧版本（无 `InstallLocation`）会从卸载键的 `DisplayIcon` 推导安装目录，因此从 0.6.2 升级也能正确预选
+
 ## [0.6.2] - 2026-09-01
 
 ### 修复

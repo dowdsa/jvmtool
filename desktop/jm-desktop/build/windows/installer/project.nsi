@@ -85,6 +85,30 @@ ShowInstDetails show # This will always show the installation details.
 
 Function .onInit
    !insertmacro wails.checkArchitecture
+
+   ; Preselect the previously chosen install directory on upgrade so the
+   ; user does not have to browse for it again. InstallLocation is written
+   ; by this installer (see below); installs predating it only have
+   ; DisplayIcon, whose parent dir is the install dir. Per-user installs
+   ; register in HKCU, per-machine in HKLM — probe both. wails_tools
+   ; writes the key with SetRegView 64, so read the same view.
+   SetRegView 64
+   ReadRegStr $R0 HKCU "${UNINST_KEY}" "InstallLocation"
+   ${If} $R0 == ""
+       ReadRegStr $R0 HKLM "${UNINST_KEY}" "InstallLocation"
+   ${EndIf}
+   ${If} $R0 == ""
+       ReadRegStr $R1 HKCU "${UNINST_KEY}" "DisplayIcon"
+       ${If} $R1 == ""
+           ReadRegStr $R1 HKLM "${UNINST_KEY}" "DisplayIcon"
+       ${EndIf}
+       ${If} $R1 != ""
+           ${GetParent} $R1 $R0
+       ${EndIf}
+   ${EndIf}
+   ${If} $R0 != ""
+       StrCpy $INSTDIR $R0
+   ${EndIf}
 FunctionEnd
 
 # Close a running instance so the executable can be overwritten / deleted.
@@ -114,6 +138,11 @@ Section
     !insertmacro wails.associateCustomProtocols
 
     !insertmacro wails.writeUninstaller
+
+    ; Remember the install directory so the next upgrade preselects it.
+    ; SHCTX matches the hive wails.setShellContext picked; wails_tools
+    ; already switched to the 64-bit registry view.
+    WriteRegStr SHCTX "${UNINST_KEY}" "InstallLocation" "$INSTDIR"
 SectionEnd
 
 Section "uninstall"

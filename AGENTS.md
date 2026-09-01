@@ -93,6 +93,7 @@ Resolve → 文件锁 → 下载到 cache（**镜像优先**：TUNA Adoptium 镜
 - 本地（非 wails）交叉编译桌面端需 `frontend/dist` 存在（`go:embed all:frontend/dist`），dist 是 gitignore 的构建产物，`wails build` 会自动生成；临时桩用后应删除
 - 桌面端有单实例保护（`main.go SingleInstanceLock`，UniqueId `dowdsa.jvmtool.jm-desktop`）：第二个进程通知主实例唤起窗口后自动退出
 - NSIS 安装/卸载前会 `taskkill /f /im jm-desktop.exe`（`project.nsi` 的 `killRunningInstance` 宏）——否则托盘驻留的旧实例锁住 exe，安装器报 "Error opening file for writing"
+- NSIS 升级记忆安装路径：安装时写卸载键 `InstallLocation`（SHCTX + SetRegView 64），`.onInit` 读回预选 `$INSTDIR`，旧安装无此字段时回退读 `DisplayIcon` 取父目录。注意 Wails 写键用 `SetRegView 64`（64 位视图/WOW6432Node 区分），读时必须一致。本地验证脚本可 `apt install nsis` 后用 `makensis -DARG_WAILS_AMD64_BINARY=<stub> project.nsi` 编译（还需桩 `tmp/MicrosoftEdgeWebview2Setup.exe`）；`wails_tools.nsh` 是 wails 每次构建重新生成的，改它无效，只改 `project.nsi`
 - 桌面端托盘用 `nicehash/systray`？**不对，实际用的是 `getlantern/systray` v1.2.1**（旧记忆有误）；必须先 `systray.Run()` 初始化再 SetIcon，直接 SetIcon 会 panic（v0.5.5 踩过）
 - Wails 选目录 API 是 `OpenDirectoryDialog`（`OpenFileDialog` 是选文件的，v0.5.3 踩过）
 - Maven metadata 每次 List/Resolve 都重新请求（可加 5 分钟内存缓存，已知 TODO）
