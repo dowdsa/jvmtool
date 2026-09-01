@@ -8,7 +8,7 @@ Go 编写的多版本 JDK / Maven 管理工具，CLI 命令为 `jm`（Go module 
 
 - 语言: Go 1.25（go.mod 只写 minor 版本，遵守惯例）
 - CLI 框架: spf13/cobra；UI 文案全部是中文
-- 最新版本: **0.6.1**（2026-08-22），代码内 `pkg/version.Version` 默认为 `"dev"`，发布时用 ldflags 注入
+- 最新版本: **0.6.2**（2026-09-01），代码内 `pkg/version.Version` 默认为 `"dev"`，发布时用 ldflags 注入
 
 ## 常用命令
 
