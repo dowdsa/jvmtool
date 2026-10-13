@@ -3,23 +3,61 @@ package version
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"jm/pkg/config"
 )
 
 const mavenMetadataURL = "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/maven-metadata.xml"
 
-// MavenSource implements Source backed by Apache Maven central.
-type MavenSource struct {
-	Client *http.Client
+// mavenMetadataTTL bounds how long a cached maven-metadata.xml is served
+// without revalidation.
+const mavenMetadataTTL = 5 * time.Minute
+
+// metadataCache is a small TTL cache with If-Modified-Since revalidation for
+// the maven metadata document.
+type metadataCache struct {
+	mu           sync.Mutex
+	ttl          time.Duration
+	fetchedAt    time.Time
+	meta         *metadata
+	lastModified string
 }
 
+// MavenSource implements Source backed by Apache Maven central.
+type MavenSource struct {
+	// Client, when non-nil, is used directly (tests inject fakes). Otherwise
+	// the proxy-aware config.HTTPClient() is resolved per request.
+	Client *http.Client
+	cache  *metadataCache
+}
+
+var (
+	mavenSourceOnce  sync.Once
+	sharedMavenCache *metadataCache
+)
+
+// NewMavenSource returns a MavenSource sharing a process-wide metadata cache,
+// so long-lived processes (e.g. the desktop app) do not re-fetch
+// maven-metadata.xml on every command.
 func NewMavenSource() *MavenSource {
-	return &MavenSource{Client: config.HTTPClient()}
+	mavenSourceOnce.Do(func() {
+		sharedMavenCache = &metadataCache{ttl: mavenMetadataTTL}
+	})
+	return &MavenSource{cache: sharedMavenCache}
+}
+
+func (s *MavenSource) client() *http.Client {
+	if s.Client != nil {
+		return s.Client
+	}
+	return config.HTTPClient()
 }
 
 type metadata struct {
@@ -31,15 +69,52 @@ type metadata struct {
 }
 
 func (s *MavenSource) fetchMetadata(ctx context.Context) (*metadata, error) {
+	if s.cache == nil {
+		return s.fetchMetadataLive(ctx, "")
+	}
+	s.cache.mu.Lock()
+	defer s.cache.mu.Unlock()
+	if s.cache.meta != nil && time.Since(s.cache.fetchedAt) < s.cache.ttl {
+		return s.cache.meta, nil
+	}
+	m, err := s.fetchMetadataLive(ctx, s.cache.lastModified)
+	switch {
+	case errors.Is(err, errNotModified):
+		s.cache.fetchedAt = time.Now()
+		return s.cache.meta, nil
+	case err != nil:
+		// Serve stale data if the refresh fails and we have something cached.
+		if s.cache.meta != nil {
+			return s.cache.meta, nil
+		}
+		return nil, err
+	}
+	s.cache.meta = m
+	s.cache.fetchedAt = time.Now()
+	return m, nil
+}
+
+// errNotModified signals an HTTP 304 against an If-Modified-Since request.
+var errNotModified = errors.New("maven metadata not modified")
+
+// fetchMetadataLive performs the actual HTTP GET. If ifModifiedSince is
+// non-empty it is sent as If-Modified-Since; a 304 yields errNotModified.
+func (s *MavenSource) fetchMetadataLive(ctx context.Context, ifModifiedSince string) (*metadata, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, mavenMetadataURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.Client.Do(req)
+	if ifModifiedSince != "" {
+		req.Header.Set("If-Modified-Since", ifModifiedSince)
+	}
+	resp, err := s.client().Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotModified {
+		return nil, errNotModified
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("maven metadata returned %s", resp.Status)
 	}
@@ -50,6 +125,9 @@ func (s *MavenSource) fetchMetadata(ctx context.Context) (*metadata, error) {
 	var m metadata
 	if err := xml.Unmarshal(body, &m); err != nil {
 		return nil, err
+	}
+	if s.cache != nil {
+		s.cache.lastModified = resp.Header.Get("Last-Modified")
 	}
 	return &m, nil
 }
@@ -109,7 +187,7 @@ func (s *MavenSource) fetchSHA512(ctx context.Context, u string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	resp, err := s.Client.Do(req)
+	resp, err := s.client().Do(req)
 	if err != nil {
 		return "", err
 	}
