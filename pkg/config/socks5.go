@@ -62,6 +62,11 @@ func socks5Handshake(conn net.Conn, user, pass, target string) error {
 	}
 	switch resp[1] {
 	case 0x00: // no auth accepted
+		// With credentials configured we only offered 0x02; a server that
+		// selects no-auth is downgrading (or misconfigured) — refuse.
+		if user != "" {
+			return errors.New("socks5: server selected no-auth although credentials are configured")
+		}
 	case 0x02:
 		if err := socks5Auth(conn, user, pass); err != nil {
 			return err
