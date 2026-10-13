@@ -28,9 +28,13 @@ LATEST_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/downlo
 detect_rc() {
   if [ -n "${ZSH_VERSION:-}" ]; then
     echo "$HOME/.zshrc"
-  else
-    echo "$HOME/.bashrc"
+    return
   fi
+  case "$(basename "${SHELL:-}")" in
+    zsh)  echo "$HOME/.zshrc" ;;
+    fish) echo "$HOME/.config/fish/config.fish" ;;
+    *)    echo "$HOME/.bashrc" ;;
+  esac
 }
 
 RC_FILE="$(detect_rc)"
@@ -131,7 +135,27 @@ setup_env() {
       die "JVMTOOL_HOME 包含不安全字符: $JVMTOOL_HOME"
       ;;
   esac
-  block=$(cat <<EOF
+  if [ "$(basename "$RC_FILE")" = "config.fish" ]; then
+    mkdir -p "$(dirname "$RC_FILE")"
+    block=$(cat <<EOF
+$marker
+if not set -q JVMTOOL_HOME
+    set -gx JVMTOOL_HOME '${JVMTOOL_HOME}'
+end
+if test -d "\$JVMTOOL_HOME/jdk/current"
+    set -gx JAVA_HOME "\$JVMTOOL_HOME/jdk/current"
+    set -gx PATH "\$JAVA_HOME/bin" \$PATH
+end
+if test -d "\$JVMTOOL_HOME/maven/current"
+    set -gx M2_HOME "\$JVMTOOL_HOME/maven/current"
+    set -gx MAVEN_HOME "\$M2_HOME"
+    set -gx PATH "\$M2_HOME/bin" \$PATH
+end
+$marker
+EOF
+    )
+  else
+    block=$(cat <<EOF
 $marker
 export JVMTOOL_HOME='${JVMTOOL_HOME}'
 if [ -d "\$JVMTOOL_HOME/jdk/current" ]; then
@@ -145,12 +169,13 @@ if [ -d "\$JVMTOOL_HOME/maven/current" ]; then
 fi
 $marker
 EOF
-  )
+    )
+  fi
 
-  # 去除旧块，避免重复
+  # 去除旧块，避免重复（marker 首尾成对，删掉整块）
   local content=""
   if [ -f "$RC_FILE" ]; then
-    content="$(grep -v "$marker" "$RC_FILE" || true)"
+    content="$(awk -v m="$marker" 'index($0,m)==1 {t=!t; next} !t' "$RC_FILE" || true)"
   fi
   {
     printf '%s\n' "$content"

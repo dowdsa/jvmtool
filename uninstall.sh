@@ -24,9 +24,13 @@ die()  { printf '\033[1;31m[FAIL]\033[0m %s\n' "$*" >&2; exit 1; }
 detect_rc() {
   if [ -n "${ZSH_VERSION:-}" ]; then
     echo "$HOME/.zshrc"
-  else
-    echo "$HOME/.bashrc"
+    return
   fi
+  case "$(basename "${SHELL:-}")" in
+    zsh)  echo "$HOME/.zshrc" ;;
+    fish) echo "$HOME/.config/fish/config.fish" ;;
+    *)    echo "$HOME/.bashrc" ;;
+  esac
 }
 RC_FILE="$(detect_rc)"
 
@@ -44,7 +48,7 @@ legacy_marker="# ---- jvmtool ----"
 if [ -f "$RC_FILE" ]; then
   if grep -q "$marker" "$RC_FILE" 2>/dev/null; then
     # 移除 marker 包裹的整块
-    content="$(grep -v "$marker" "$RC_FILE" || true)"
+    content="$(awk -v m="$marker" 'index($0,m)==1 {t=!t; next} !t' "$RC_FILE" || true)"
     printf '%s\n' "$content" > "$RC_FILE.tmp"
     mv "$RC_FILE.tmp" "$RC_FILE"
     log "已清理环境变量块: $RC_FILE"

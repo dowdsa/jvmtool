@@ -54,3 +54,49 @@ func TestBlockContainsKeys(t *testing.T) {
 		}
 	}
 }
+
+func TestFishRCFileAndBlock(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/usr/bin/fish")
+
+	rc := RCFile()
+	want := filepath.Join(home, ".config", "fish", "config.fish")
+	if rc != want {
+		t.Fatalf("RCFile() = %q, want %q", rc, want)
+	}
+
+	if err := ApplyBlock("/tmp/jmtest"); err != nil {
+		t.Fatalf("ApplyBlock: %v", err)
+	}
+	content, err := os.ReadFile(rc)
+	if err != nil {
+		t.Fatalf("config.fish should be created with parents: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "set -gx JVMTOOL_HOME") {
+		t.Fatalf("fish block should use set -gx: %q", text)
+	}
+	if strings.Contains(text, "export ") {
+		t.Fatalf("fish block must not contain bash export syntax: %q", text)
+	}
+
+	changed, err := RemoveBlock(rc)
+	if err != nil || !changed {
+		t.Fatalf("RemoveBlock fish block: changed=%v err=%v", changed, err)
+	}
+	if HasBlock(rc) {
+		t.Fatal("fish block should be removed")
+	}
+}
+
+func TestBlockForShell(t *testing.T) {
+	t.Setenv("SHELL", "/usr/bin/zsh")
+	if got := BlockFor("/root"); !strings.Contains(got, "export JVMTOOL_HOME") {
+		t.Fatalf("zsh should get POSIX block, got %q", got)
+	}
+	t.Setenv("SHELL", "/usr/local/bin/fish")
+	if got := BlockFor("/root"); !strings.Contains(got, "set -gx PATH") {
+		t.Fatalf("fish should get fish block, got %q", got)
+	}
+}

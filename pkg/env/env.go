@@ -13,10 +13,18 @@ const marker = "# >>> jm >>>"
 // RCFile returns the shell rc file to manage based on the current shell.
 func RCFile() string {
 	shell := os.Getenv("SHELL")
-	if strings.Contains(shell, "zsh") {
+	switch {
+	case strings.Contains(shell, "zsh"):
 		return filepath.Join(mustHome(), ".zshrc")
+	case strings.Contains(shell, "fish"):
+		return filepath.Join(mustHome(), ".config", "fish", "config.fish")
 	}
 	return filepath.Join(mustHome(), ".bashrc")
+}
+
+// isFish reports whether the user's login shell is fish.
+func isFish() bool {
+	return strings.Contains(os.Getenv("SHELL"), "fish")
 }
 
 // HasBlock reports whether the rc file contains the jm env block.
@@ -50,6 +58,34 @@ func Block(root string) string {
 	b.WriteString("fi\n")
 	b.WriteString(marker + "\n")
 	return b.String()
+}
+
+// FishBlock returns the same environment block using fish syntax
+// (set -gx instead of export), for ~/.config/fish/config.fish.
+func FishBlock(root string) string {
+	var b strings.Builder
+	b.WriteString(marker + "\n")
+	fmt.Fprintf(&b, "if not set -q JVMTOOL_HOME\n    set -gx JVMTOOL_HOME %s\nend\n", shellQuote(root))
+	b.WriteString("if test -d \"$JVMTOOL_HOME/jdk/current\"\n")
+	b.WriteString("    set -gx JAVA_HOME \"$JVMTOOL_HOME/jdk/current\"\n")
+	b.WriteString("    set -gx PATH \"$JAVA_HOME/bin\" $PATH\n")
+	b.WriteString("end\n")
+	b.WriteString("if test -d \"$JVMTOOL_HOME/maven/current\"\n")
+	b.WriteString("    set -gx M2_HOME \"$JVMTOOL_HOME/maven/current\"\n")
+	b.WriteString("    set -gx MAVEN_HOME \"$M2_HOME\"\n")
+	b.WriteString("    set -gx PATH \"$M2_HOME/bin\" $PATH\n")
+	b.WriteString("end\n")
+	b.WriteString(marker + "\n")
+	return b.String()
+}
+
+// BlockFor returns the environment block in the syntax appropriate for the
+// rc file selected by RCFile.
+func BlockFor(root string) string {
+	if isFish() {
+		return FishBlock(root)
+	}
+	return Block(root)
 }
 
 // RemoveBlock removes the jm env block from the rc file.
@@ -101,8 +137,11 @@ func ApplyBlock(root string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Dir(rcFile), 0o755); err != nil {
+		return err
+	}
 	text := strings.TrimRight(string(content), "\n")
-	block := "\n" + Block(root)
+	block := "\n" + BlockFor(root)
 	if text == "" {
 		block = strings.TrimPrefix(block, "\n")
 	}
