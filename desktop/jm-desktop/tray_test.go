@@ -55,7 +55,7 @@ func TestGenerateTrayIconIsICO(t *testing.T) {
 	if typ := binary.LittleEndian.Uint16(ico[2:4]); typ != 1 {
 		t.Fatalf("type = %d, want 1 (icon)", typ)
 	}
-	if !bytes.Equal(ico[22:26], []byte{0x89, 'P', 'N', 'G', '\r'}) {
+	if !bytes.Equal(ico[22:27], []byte{0x89, 'P', 'N', 'G', '\r'}) {
 		t.Error("embedded entry does not start with PNG signature")
 	}
 }
