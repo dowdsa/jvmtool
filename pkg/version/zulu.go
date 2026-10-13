@@ -54,20 +54,16 @@ func zuluOS() string {
 }
 
 type zuluPackage struct {
-	Name            string `json:"name"`
-	JavaVersion     []int  `json:"java_version"`
-	JdkVersion      []int  `json:"jdk_version"`
-	ZuluVersion     string `json:"zulu_version"`
-	DownloadURL     string `json:"download_url"`
-	ArchiveType     string `json:"archive_type"`
-	JavaPackageType string `json:"java_package_type"`
-	OS              string `json:"os"`
-	Arch            string `json:"arch"`
-	HWBits          string `json:"hw_bitness"`
-	SHA256Hash      string `json:"sha256_hash"`
-	Size            int64  `json:"size"`
-	Latest          bool   `json:"latest"`
-	ReleaseStatus   string `json:"release_status"`
+	Name        string `json:"name"`
+	JavaVersion []int  `json:"java_version"`
+	DownloadURL string `json:"download_url"`
+	PackageUUID string `json:"package_uuid"`
+	Size        int64  `json:"size"`
+	SHA256Hash  string `json:"sha256_hash"`
+	Latest      bool   `json:"latest"`
+	// ReleaseStatus is only present on the package detail endpoint; the list
+	// endpoint has served slim records (without it) since Azul's 2026 change.
+	ReleaseStatus string `json:"release_status"`
 }
 
 func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]string, error) {
@@ -81,12 +77,12 @@ func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]strin
 	q.Set("release_status", "ga")
 	q.Set("latest", "true")
 	if query != "" {
-		// API expects array format: java_version=[8] or java_version=[17]
+		// The API filters by plain major version (java_version=17). The old
+		// bracket format ([17]) is now silently ignored and returns everything.
 		// For JDK 8, query is already normalized to e.g. "8", "8u431" etc.
-		// Extract just the major version number for the API filter.
 		majorVer := extractMajorVersion(NormalizeJDKVersion(query))
 		if majorVer != "" {
-			q.Set("java_version", "["+majorVer+"]")
+			q.Set("java_version", majorVer)
 		}
 	}
 	u.RawQuery = q.Encode()
@@ -116,7 +112,9 @@ func (s *ZuluSource) List(ctx context.Context, query string, limit int) ([]strin
 	var out []string
 	seen := make(map[string]bool)
 	for _, pkg := range pkgs {
-		if !pkg.Latest || pkg.ReleaseStatus != "ga" {
+		// release_status=ga is enforced server-side via the query param; the
+		// slim list records no longer carry the field, so don't filter on it.
+		if !pkg.Latest {
 			continue
 		}
 		v := zuluVersionString(pkg)
@@ -146,10 +144,10 @@ func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, er
 	q.Set("java_package_type", "jdk")
 	q.Set("javafx_bundled", "false")
 	q.Set("release_status", "ga")
-	// Extract major version for API filter
+	// Extract major version for API filter (plain format, see List)
 	majorVer := extractMajorVersion(version)
 	if majorVer != "" {
-		q.Set("java_version", "["+majorVer+"]")
+		q.Set("java_version", majorVer)
 	}
 	u.RawQuery = q.Encode()
 
@@ -173,33 +171,83 @@ func (s *ZuluSource) Resolve(ctx context.Context, version string) (*Artifact, er
 	if err := json.Unmarshal(body, &pkgs); err != nil {
 		return nil, err
 	}
-	// Find the best match: prefer Latest=true, otherwise take the first GA.
+	// Pick the best match: prefer a Latest non-crac build (crac variants are
+	// CRIU-specialized), then Latest, then any record.
+	isCrac := func(n string) bool { return strings.Contains(strings.ToLower(n), "-crac-") }
 	var best *zuluPackage
-	for i := range pkgs {
-		p := &pkgs[i]
-		if p.ReleaseStatus != "ga" {
-			continue
-		}
-		if best == nil {
+	for _, pass := range []struct{ requireLatest, allowCrac bool }{
+		{true, false}, {true, true}, {false, false}, {false, true},
+	} {
+		for i := range pkgs {
+			p := &pkgs[i]
+			if p.Latest != pass.requireLatest && pass.requireLatest {
+				continue
+			}
+			if !pass.allowCrac && isCrac(p.Name) {
+				continue
+			}
 			best = p
+			break
 		}
-		// Prefer a package marked Latest=true; once found, keep it.
-		if p.Latest {
-			best = p
+		if best != nil {
 			break
 		}
 	}
 	if best == nil {
 		return nil, fmt.Errorf("no Zulu JDK matches %q for %s/%s", version, s.OS, s.Arch)
 	}
-	v := zuluVersionString(*best)
+	// The list endpoint no longer includes checksums; fetch the full record.
+	detail, err := s.fetchPackageDetail(ctx, best.PackageUUID)
+	if err != nil {
+		return nil, err
+	}
+	if detail.SHA256Hash == "" {
+		return nil, fmt.Errorf("zulu package %s has no SHA256 checksum", detail.Name)
+	}
+	if detail.ReleaseStatus != "" && detail.ReleaseStatus != "ga" {
+		return nil, fmt.Errorf("zulu package %s is not a GA release (%s)", detail.Name, detail.ReleaseStatus)
+	}
+	v := zuluVersionString(*detail)
 	return &Artifact{
 		Version:  v,
-		Filename: best.Name,
-		URL:      best.DownloadURL,
-		Size:     best.Size,
-		SHA256:   best.SHA256Hash,
+		Filename: detail.Name,
+		URL:      detail.DownloadURL,
+		Size:     detail.Size,
+		SHA256:   detail.SHA256Hash,
 	}, nil
+}
+
+// fetchPackageDetail retrieves the full record for one package (the list
+// endpoint only returns slim records without sha256_hash/release_status).
+func (s *ZuluSource) fetchPackageDetail(ctx context.Context, uuid string) (*zuluPackage, error) {
+	if uuid == "" {
+		return nil, fmt.Errorf("zulu package missing package_uuid")
+	}
+	// uuid comes from the API response; keep it strictly path-safe.
+	if len(uuid) > 64 || strings.ContainsAny(uuid, "/\\?# \t\n") {
+		return nil, fmt.Errorf("zulu package has invalid uuid %q", uuid)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, zuluAPI+"/"+uuid, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("zulu package detail returned %s", resp.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return nil, err
+	}
+	var d zuluPackage
+	if err := json.Unmarshal(body, &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
 }
 
 // zuluVersionString builds a version string like "17.0.13" from the API data.
