@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>jm · JDK 与 Maven 多版本管理工具</title>
+<meta name="description" content="jm 是 Go 编写的多版本 JDK（Temurin / Zulu / OpenJDK）与 Maven 管理工具。一条命令安装切换，镜像加速下载，SHA 校验，项目级版本固定，附带 Windows 桌面端。">
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="#top" aria-label="jm 首页">
+    <img src="assets/logo.png" alt="jm 图标">
+    <b>jm</b><span>jvmtool</span>
+  </a>
+  <nav class="site-nav" id="site-nav" aria-label="主导航">
+    <a href="#features">特性</a>
+    <a href="#commands">命令</a>
+    <a href="#desktop">桌面端</a>
+    <a href="#download">下载</a>
+    <a class="nav-gh" href="https://github.com/dowdsa/jvmtool" rel="noopener">GitHub</a>
+  </nav>
+  <button class="nav-toggle" aria-label="打开菜单" aria-expanded="false" aria-controls="site-nav">☰</button>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="kicker rise rise-1">Multi-version JDK &amp; Maven Manager</p>
+      <h1 class="rise rise-2">让 JDK 与 Maven<br><em>随取随用</em></h1>
+      <p class="lede rise rise-3">jm 是一个用 Go 编写的多版本 JDK / Maven 管理工具。搜索、安装、切换、卸载，全部一条命令搞定；支持 Temurin、Zulu、OpenJDK 三大发行版与 Apache Maven，附带 Windows 图形界面。</p>
+    </div>
+    <div class="hero-install rise rise-4">
+      <figure class="install-card">
+        <figcaption>Linux / macOS</figcaption>
+        <pre><code id="cmd-unix">bash &lt;(curl -fsSL https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.sh)</code></pre>
+        <button class="copy-btn" data-copy="cmd-unix" aria-label="复制 Linux/macOS 安装命令">复制</button>
+      </figure>
+      <figure class="install-card">
+        <figcaption>Windows · PowerShell</figcaption>
+        <pre><code id="cmd-win">iwr https://raw.githubusercontent.com/dowdsa/jvmtool/main/install.ps1 -useb | iex</code></pre>
+        <button class="copy-btn" data-copy="cmd-win" aria-label="复制 Windows 安装命令">复制</button>
+      </figure>
+    </div>
+  </section>
+
+  <section id="features" class="features">
+    <div class="sec-head" data-reveal><p class="kicker" style="margin:0">Capabilities</p><h2>为什么选 jm</h2><span class="num">01 / 04</span></div>
+    <div class="feature-grid">
+      <article data-reveal="1"><p class="kicker">01</p><h3>多发行版并存</h3><p>Temurin、Zulu、OpenJDK 与 Maven 同仓共存，<code>--distro</code> 一个标志自由切换来源，告别手动解压与环境变量打架。</p></article>
+      <article data-reveal="2"><p class="kicker">02</p><h3>镜像加速下载</h3><p>内置 TUNA Adoptium 镜像与华为云 Maven 镜像，国内网络直连下载大体积 JDK 也不再漫长，失败自动回退官方源。</p></article>
+      <article data-reveal="3"><p class="kicker">03</p><h3>校验与安全解压</h3><p>所有安装包强制 SHA256/512 校验，缺失校验和直接拒绝；解压带 zip bomb 与符号链接防护，装得放心。</p></article>
+      <article data-reveal="4"><p class="kicker">04</p><h3>环境自动配置</h3><p>Windows 写入注册表 JAVA_HOME / PATH，Unix 维护 shell rc 块；<code>jm use 17</code> 即切，卸载自动回退到剩余最高版本。</p></article>
+      <article data-reveal="5"><p class="kicker">05</p><h3>项目级版本固定</h3><p>仓库里放一个 <code>.jvmtoolrc</code>（<code>jdk=17</code> / <code>maven=3.9</code>），进入目录即锁定团队一致的工具链版本。</p></article>
+      <article data-reveal="6"><p class="kicker">06</p><h3>体检与自更新</h3><p><code>jm doctor</code> 检查环境与代理配置，<code>jm update</code> 一键升级到最新版；断点续传 + 重试，弱网也能装完。</p></article>
+    </div>
+  </section>
+
+  <section id="commands" class="commands">
+    <div class="sec-head" data-reveal><p class="kicker" style="margin:0">In Practice</p><h2>常用命令</h2><span class="num">02 / 04</span></div>
+    <div class="terminal" data-reveal>
+      <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><em>zsh — jm</em></div>
+      <pre class="term-body"><code id="term-code"><span class="p">$ </span>jm jdk search 17 --distro zulu      <span class="o"># 在 Zulu 中搜索 JDK 17</span>
+<span class="p">$ </span>jm jdk install 17.0.20                <span class="o"># 下载并安装（镜像优先）</span>
+<span class="p">$ </span>jm jdk use 17                         <span class="o"># 切换当前版本</span>
+<span class="p">$ </span>jm maven install 3.9.11 &amp;&amp; jm maven use 3.9
+<span class="p">$ </span>jm status                             <span class="o"># 查看已安装与当前版本</span>
+<span class="p">$ </span>jm jdk import /usr/lib/jvm/java-21    <span class="o"># 收编系统里已有的 JDK</span>
+<span class="p">$ </span>jm doctor                             <span class="o"># 环境与代理体检</span></code></pre>
+    </div>
+  </section>
+
+  <section id="desktop" class="desktop-wrap">
+    <div class="sec-head" data-reveal><p class="kicker" style="margin:0">GUI Companion</p><h2>还有图形界面</h2><span class="num">03 / 04</span></div>
+    <div class="desktop" data-reveal>
+      <div class="desk-copy">
+        <p>Windows 桌面端 <strong>jm-desktop</strong> 提供与 CLI 同源的可视化版本管理：浏览与安装版本、一键切换、系统托盘常驻、开机自启、单实例保护。用 Go + Wails 构建，单个安装包仅 6 MB，界面与官网同款黑白极简。</p>
+        <a class="btn" id="desk-dl" href="https://github.com/dowdsa/jvmtool/releases/latest">检测系统中…</a>
+        <p class="desk-note" id="desk-note" hidden></p>
+      </div>
+      <img class="desk-logo" src="assets/logo.png" alt="jm 应用图标">
+    </div>
+
+    <div class="ui-window" data-reveal role="img" aria-label="jm-desktop 概览页界面示意：左侧黑色导航栏，右侧已安装版本空状态与发现新版本搜索框">
+      <div class="ui-chrome"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><em>jm-desktop</em><span class="ui-tag">界面示意</span></div>
+      <div class="ui-body">
+        <aside class="ui-side">
+          <div class="ui-brand"><b>jm</b><span>version manager</span></div>
+          <nav class="ui-nav">
+            <div class="ui-nav-item on"><i>01</i><span><strong>JDK</strong><small>java</small></span><em class="arr">↗</em></div>
+            <div class="ui-nav-item"><i>02</i><span><strong>Maven</strong><small>mvn</small></span></div>
+            <div class="ui-nav-item"><i>03</i><span><strong>下载管理</strong><small>0 个任务</small></span></div>
+          </nav>
+          <div class="ui-side-foot">
+            <span><span class="live"></span>LOCAL ENVIRONMENT</span>
+            <span class="ui-ver">v0.6.4</span>
+            <span class="ui-set">⚙ 设置</span>
+          </div>
+        </aside>
+        <main class="ui-main">
+          <header class="ui-head">
+            <div class="ui-crumb"><span>TOOLCHAIN</span><i></i><b>JDK</b></div>
+            <span class="ui-root">C:\Users\you\.jvmtool</span>
+          </header>
+          <section class="ui-hero">
+            <div>
+              <p class="ui-eyebrow">ACTIVE TOOLCHAIN</p>
+              <h1 class="ui-h1">JDK<span>.</span></h1>
+              <p>OpenJDK (Temurin) · 管理已安装版本，保持你的本地开发环境井然有序。</p>
+            </div>
+            <div class="ui-cmd"><i>CURRENT COMMAND</i><code>java —</code></div>
+          </section>
+          <section class="ui-stats">
+            <div class="ui-stat"><i>INSTALLED</i><b>0</b><small>个本地版本</small></div>
+            <div class="ui-stat"><i>ACTIVE</i><b>—</b><small>当前默认版本</small></div>
+            <div class="ui-stat stat-note"><i>TIP</i><p>切换版本后，新终端会自动使用该版本。</p></div>
+          </section>
+          <section class="ui-grid">
+            <div class="ui-col">
+              <div class="ui-col-head">
+                <div><p class="ui-eyebrow">YOUR MACHINE</p><h2>已安装版本</h2></div>
+                <div class="ui-col-actions"><span class="ui-text-btn">导入目录</span><span class="ui-icon-btn">↻</span></div>
+              </div>
+              <div class="ui-list">
+                <div class="ui-empty"><strong>尚无已安装版本</strong><small>从右侧目录中搜索并安装一个版本。</small></div>
+              </div>
+            </div>
+            <div class="ui-col">
+              <div class="ui-col-head"><div><p class="ui-eyebrow">REMOTE CATALOG</p><h2>发现新版本</h2></div></div>
+              <div class="ui-search">
+                <label>版本号</label>
+                <p class="ui-field-label">JDK 发行版</p>
+                <div class="ui-select">OpenJDK (Oracle)<span>▾</span></div>
+                <div class="ui-search-row"><span class="ui-input">例如 17、21 或 3.9</span><span class="ui-go">搜索 →</span></div>
+                <p class="ui-hint">留空可浏览全部可用版本</p>
+              </div>
+              <p class="ui-results"><span>AVAILABLE</span><i></i></p>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </section>
+
+  <section id="download" class="download">
+    <div class="sec-head" data-reveal><p class="kicker" style="margin:0">Get It</p><h2>获取 jm</h2><span class="num">04 / 04</span></div>
+    <div class="dl-grid">
+      <article data-reveal="1"><p class="kicker">A</p><h3>安装脚本</h3><p>自动检测平台、下载二进制并配置环境变量。</p><a href="https://github.com/dowdsa/jvmtool/blob/main/install.sh">install.sh</a><a href="https://github.com/dowdsa/jvmtool/blob/main/install.ps1" style="margin-top:8px">install.ps1</a></article>
+      <article data-reveal="2"><p class="kicker">B</p><h3>预编译二进制</h3><p>Linux / macOS / Windows，x64 与 arm64 共 6 平台，均为最新版直接下载。</p><p class="dl-links" id="cli-all"><a data-asset="jm_linux_amd64">Linux · x64</a><a data-asset="jm_linux_arm64">Linux · ARM64</a><a data-asset="jm_darwin_amd64">macOS · x64</a><a data-asset="jm_darwin_arm64">macOS · ARM64</a><a data-asset="jm_windows_amd64.exe">Windows · x64</a><a data-asset="jm_windows_arm64.exe">Windows · ARM64</a></p></article>
+      <article data-reveal="3"><p class="kicker">C</p><h3>桌面端</h3><p>jm-desktop Windows 安装包（NSIS），点击直接下载。</p><p class="dl-links"><a id="desk-file" href="https://github.com/dowdsa/jvmtool/releases/latest/download/jm-desktop_windows_amd64.exe">Windows · x64 · 安装包</a></p></article>
+      <article data-reveal="4"><p class="kicker">D</p><h3>源码构建</h3><p>Go 1.25+ 直接构建 CLI，桌面端需要 Wails CLI 与 Node.js。</p><a href="https://github.com/dowdsa/jvmtool">仓库主页</a></article>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p style="margin:0">jm · Apache License 2.0</p>
+  <p style="margin:0"><a href="https://github.com/dowdsa/jvmtool">github.com/dowdsa/jvmtool</a></p>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -26,3 +26,9 @@ PROJECT_MEMORY.md
 # Dependencies (local installs)
 node_modules/
 .gocache/
+
+# Qoder Sites descriptor (local publication binding)
+*.qoder.site
+
+# Local icon preview bundle
+jm-icon-preview.zip
