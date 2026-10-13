@@ -5,6 +5,29 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [0.6.4] - 2026-10-12
+
+### 新增
+
+- **全新应用图标**：替换 Wails 默认的 "W" 占位图标与手画矩形的托盘图标。新图标为黑白极简字标——纸白圆角底（#f6f6f3）+ 墨黑衬线 "jm."（DejaVu Serif Bold，灰色句点），与桌面端侧栏品牌标、官网编辑部风格同一套设计语言；覆盖应用窗口、Windows 系统托盘与安装包，由 `tools/genicon` 渲染（4096px 超采样抗锯齿，衬线字体随工具嵌入保证可复现，输出 appicon.png / tray-icon.png / 多尺寸 icon.ico）
+- **PR 质量门禁**：新增 `.github/workflows/quality.yml`，push 到 main 与 Pull Request 时运行 gofmt/测试/-race/vet/桌面端前端构建，无需等到打 tag 才发现问题
+- **Maven 版本元数据缓存**：`maven-metadata.xml` 现在按进程缓存 5 分钟，过期后用 `If-Modified-Since` 条件请求（304 复用内存数据，网络失败时回退旧缓存），长驻的桌面端不再每次搜索/安装都重复请求中央仓库
+- **fish 支持**：`install.sh` / `uninstall.sh` 与 `jm use`（`pkg/env`）识别 `SHELL=fish`，环境变量块写入 `~/.config/fish/config.fish` 并使用 `set -gx` 语法，不再误写入 `~/.bashrc`
+
+### 修复
+
+- **Zulu 发行版无法搜索/安装**：Azul metadata API 行为变更——`java_version=[17]` 数组格式被静默忽略（现只认 `java_version=17`），且列表端点改为不含 `release_status`/`sha256_hash` 的精简记录，导致客户端 GA 过滤全数剔除、解析结果为空。现改用裸版本号过滤、去掉对精简字段的依赖，Resolve 改为按 `package_uuid` 请求包详情端点获取校验和（缺失即拒绝安装），并优先选择非 crac 构建；新增 `zulu_test.go` 防回归
+- **SOCKS5 认证降级校验补全**：客户端配置凭据时已只提议用户名/密码认证（0x02），但若代理仍回复"无认证"（0x00），此前会被静默接受；现在直接拒绝该握手
+- **安装/卸载脚本清理环境块不彻底**：`grep -v "$marker"` 只删除 marker 行、块体残留导致重复追加，现按成对 marker 删除整块（与 `jm env clean` 行为一致）
+- **桌面端托盘回归测试修复**：`tray_test.go` 的 PNG 签名断言取错切片长度（`ico[22:26]` 对比 5 字节），该测试自写入起从未通过——桌面端是独立 module，主模块 `go test ./...` 覆盖不到它
+
+### 测试
+
+- `cmd` 层新增冒烟测试：子命令注册、`--distro` 标志路由与默认值、maven 组拒绝 `--distro`、空目录 `jdk list`
+- `pkg/download` 新增 httptest 测试：全量下载、断点续传、流中断后 Range 重试、重试耗尽报错、服务端忽略 Range 时截断残留尾、已完成文件短路、进度回调
+- `pkg/config` 新增 SOCKS5 握手测试：凭据认证成功、拒绝无认证降级、拒绝错误凭据、匿名握手、CONNECT 失败、greeting 仅提议 0x02
+- `pkg/env` 新增 fish 测试：`RCFile`/`ApplyBlock`/`RemoveBlock` 走 `config.fish`，块内无 bash `export` 语法
+
 ## [0.6.3] - 2026-09-01
 
 ### 修复
