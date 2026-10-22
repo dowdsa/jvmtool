@@ -6,7 +6,7 @@
 
 Go 编写的多版本 JDK / Maven 管理工具，CLI 命令为 `jm`（Go module 名为 `jm`，非域名路径）。支持三种 JDK 发行版：**Temurin**（默认是 openjdk，注意 v0.6.0 起默认改为 OpenJDK）、**Zulu**、**OpenJDK**，以及 Apache Maven。附带 Windows 桌面端（Wails v2 GUI，独立 go.mod）。
 
-- 语言: Go 1.25（go.mod 只写 minor 版本，遵守惯例）
+- 语言: Go 1.26（go.mod 只写 minor 版本，遵守惯例）
 - CLI 框架: spf13/cobra；UI 文案全部是中文
 - 最新版本: **0.6.4**（2026-10-12），代码内 `pkg/version.Version` 默认为 `"dev"`，发布时用 ldflags 注入
 
@@ -93,7 +93,7 @@ Resolve → 文件锁 → 下载到 cache（**镜像优先**：TUNA Adoptium 镜
 - **`getlantern/systray` 在 Windows 上只认 .ico**：内部把字节写临时文件后用 `LoadImage(IMAGE_ICON|LR_LOADFROMFILE)` 加载，传 PNG 会静默失败 → 托盘图标空白。`tray.go pngToICO` 把 PNG 包成 ICO 容器（PNG 压缩条目 Vista+ 可用），有 `tray_test.go` 防回归
 - 托盘图标是 `//go:embed build/tray-icon.png`（64px，与主图标同源）；**换图标跑 `go run ./tools/genicon -out desktop/jm-desktop/build`**，改设计就改 genicon 里的谓词/颜色再重跑
 - **桌面端是独立 module，主模块 `go test ./...` 与 CI quality 关卡都不跑它的单测**（Linux 上编译需 GTK/appindicator 头文件）——改 desktop 后必须手动 `cd desktop/jm-desktop && go test .`（本地需先有 frontend/dist 桩或跑过 wails build）
-- 桌面端 `go.mod` 的 go 指令必须是 `go 1.25.0` 与主模块一致——写 `go 1.25` 时因 `replace jm => ../..` 版本不匹配，`go build` 直接报 "updates to go.mod needed"
+- 桌面端 `go.mod` 的 go 指令必须与主模块一致（现为 `go 1.26.0`）——写 `go 1.26` 时因 `replace jm => ../..` 版本不匹配，`go build` 直接报 "updates to go.mod needed"
 - **重发 tag 的坑**：`action-gh-release` 对已存在的 release 只覆盖资产、不更新 body——重打 tag 前必须删旧 release。release.yml 已内置 "Remove stale release" 步骤（`gh release delete` || true）保证幂等
 - 本地（非 wails）交叉编译桌面端需 `frontend/dist` 存在（`go:embed all:frontend/dist`），dist 是 gitignore 的构建产物，`wails build` 会自动生成；临时桩用后应删除
 - 桌面端有单实例保护（`main.go SingleInstanceLock`，UniqueId `dowdsa.jvmtool.jm-desktop`）：第二个进程通知主实例唤起窗口后自动退出

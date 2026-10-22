@@ -1,11 +1,11 @@
 # jvmtool
 
-使用 Go 编写的多版本 JDK 与 Maven 管理工具，支持 Temurin (Adoptium) 和 Zulu (Azul) 两种 JDK 发行版。
+使用 Go 编写的多版本 JDK 与 Maven 管理工具，支持 OpenJDK（默认）、Temurin (Adoptium) 和 Zulu (Azul) 三种 JDK 发行版。
 
 ## 功能
 
 - **status** 一条命令查看 JDK、Maven 当前版本、安装数量和缓存占用
-- **search** 从远程源搜索可下载版本（JDK 走 Adoptium / Zulu API，Maven 走 Apache 中央仓库）
+- **search** 从远程源搜索可下载版本（JDK 走 Adoptium / Azul API，Maven 走 Apache 中央仓库）
 - **info** 查看指定版本的详细信息（大小、校验和、下载链接、镜像源）
 - **install** 下载、校验（SHA256/SHA512）并解压安装，支持断点续传与进度条
 - **use** 切换当前版本（维护 `current` 符号链接），并自动配置 shell 环境变量；支持通过 `.jvmtoolrc` 项目级切换
@@ -14,7 +14,7 @@
 - **current** 显示当前版本并给出环境变量提示
 - **clean** 清理下载缓存
 - **env** 查看/清理 shell 环境变量配置（`jm env show` / `jm env clean`）
-- **--distro** JDK 子命令支持 `--distro` 参数切换发行版（temurin / zulu）
+- **--distro** JDK 子命令支持 `--distro` 参数切换发行版（openjdk / temurin / zulu）
 - **桌面端** Windows GUI（基于 Wails），可视化列表/切换/搜索安装/卸载
 
 ## 安装
@@ -162,11 +162,12 @@ jm maven use
 
 ## JDK 发行版
 
-通过 `--distro` 参数选择 JDK 发行版，默认使用 Temurin (Adoptium)：
+通过 `--distro` 参数选择 JDK 发行版，默认使用 OpenJDK：
 
 | 发行版 | 说明 | `--distro` 值 |
 |--------|------|--------------|
-| **Temurin** | Eclipse Adoptium，社区主流发行版（默认） | `temurin` |
+| **OpenJDK** | 通过 Adoptium API 提供的 OpenJDK 构建（默认） | `openjdk` |
+| **Temurin** | Eclipse Adoptium，社区主流发行版 | `temurin` |
 | **Zulu** | Azul Zulu，提供商业支持和更长的 LTS 周期 | `zulu` |
 
 ```bash
